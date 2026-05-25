@@ -23,6 +23,18 @@ Two kinds of habits, two solutions:
 
 The app is one rhythm with two phases per cycle (work → break) and one ritual per day (evening review).
 
+## Design north star: ambient, not appy
+
+`focus-rhythm` should feel like a clock you dock on the side of your phone, not an app you open and navigate. Most of the time it's just *there* — passively showing what phase of the cycle you're in (work / break / idle). It only asks for active interaction at cycle transitions, and even then, ideally one tap.
+
+The aesthetic goal is "a good watch face," not "a productivity dashboard." This shapes every interface decision downstream:
+
+- **The home screen IS the timer.** No tabs, no nav bar, no "dashboard." The default view is the current state.
+- **Live Activities and Dynamic Island are the primary interface,** not optional polish. They're how you interact with the app most of the day. The full app is the "settings + history" layer behind the ambient surface.
+- **Break activity prompts are full-screen takeovers during the break,** not screens you have to navigate to. The break IS the prompt.
+- **Avoid every visual pattern that screams "engagement-driven app":** no streaks-as-dopamine, no badges, no notification spam, no home-screen-grabbing.
+- **Spatial separation from work is a feature.** The phone is the right home for this app *because* it's not the desktop where the focus work happens.
+
 ## Anti-goals (things this will never have)
 
 - No subscription. No paid tiers. No "premium" features.
@@ -61,6 +73,7 @@ The app is one rhythm with two phases per cycle (work → break) and one ritual 
 focus-rhythm/
 ├── README.md
 ├── PLAN.md                   # MVP scope, roadmap, working notes
+├── FocusRhythm.xcodeproj
 ├── docs/
 │   ├── design-notes.md       # Interaction design rationale
 │   └── decisions.md          # ADRs — why I chose what I chose
@@ -79,8 +92,6 @@ focus-rhythm/
 
 ## Getting started
 
-*(Will fill in once project is initialized.)*
-
 ```bash
 # Clone
 git clone https://github.com/ashuadh7/focus-rhythm.git
@@ -95,9 +106,19 @@ open FocusRhythm.xcodeproj
 - iOS 17+ deployment target (for SwiftData and Live Activities)
 - Apple Developer account (for device testing)
 
+**Build from the command line:**
+
+```bash
+xcodebuild \
+  -project FocusRhythm.xcodeproj \
+  -scheme FocusRhythm \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  build
+```
+
 ## Status
 
-🌱 **Planning** — repo initialized, no code yet. See [PLAN.md](PLAN.md) for current scope and roadmap.
+🌱 **MVP scaffold** — native iOS project initialized with the timer home screen as the app entry point. See [PLAN.md](PLAN.md) for current scope and roadmap.
 
 ## License
 
