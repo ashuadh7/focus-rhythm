@@ -3,6 +3,8 @@ import SwiftUI
 struct TimerHomeView: View {
     @State private var viewModel = FocusTimerViewModel()
 
+    private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
     var body: some View {
         VStack(spacing: 32) {
             Spacer()
@@ -36,10 +38,42 @@ struct TimerHomeView: View {
             .controlSize(.large)
             .padding(.horizontal, 32)
 
+            if viewModel.phase == .idle {
+                durationControls
+            }
+
             Spacer()
         }
         .padding()
         .background(Color(.systemBackground))
+        .onReceive(ticker) { _ in
+            viewModel.tick()
+        }
+    }
+
+    private var durationControls: some View {
+        VStack(spacing: 8) {
+            Stepper(
+                "Work: \(Int(viewModel.workDuration / 60)) min",
+                value: Binding(
+                    get: { Int(viewModel.workDuration / 60) },
+                    set: { viewModel.updateDurations(workDuration: TimeInterval($0 * 60), breakDuration: viewModel.breakDuration) }
+                ),
+                in: 1...120,
+                step: 1
+            )
+            Stepper(
+                "Break: \(Int(viewModel.breakDuration / 60)) min",
+                value: Binding(
+                    get: { Int(viewModel.breakDuration / 60) },
+                    set: { viewModel.updateDurations(workDuration: viewModel.workDuration, breakDuration: TimeInterval($0 * 60)) }
+                ),
+                in: 1...30,
+                step: 1
+            )
+        }
+        .padding(.horizontal, 32)
+        .foregroundStyle(.secondary)
     }
 
     private var accessibilityTimeLabel: String {
