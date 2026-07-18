@@ -23,6 +23,7 @@
 		0F10000E0000000000000001 /* DailySummaryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000100000000000000001 /* DailySummaryViewModel.swift */; };
 		0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000110000000000000001 /* FocusSessionStoreTests.swift */; };
 		0F1000100000000000000001 /* DailySummaryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000120000000000000001 /* DailySummaryViewModelTests.swift */; };
+		0F1000110000000000000001 /* DailySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000130000000000000001 /* DailySummaryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +55,7 @@
 		0F2000100000000000000001 /* DailySummaryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryViewModel.swift; sourceTree = "<group>"; };
 		0F2000110000000000000001 /* FocusSessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSessionStoreTests.swift; sourceTree = "<group>"; };
 		0F2000120000000000000001 /* DailySummaryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryViewModelTests.swift; sourceTree = "<group>"; };
+		0F2000130000000000000001 /* DailySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +137,7 @@
 			isa = PBXGroup;
 			children = (
 				0F2000100000000000000001 /* DailySummaryViewModel.swift */,
+				0F2000130000000000000001 /* DailySummaryView.swift */,
 			);
 			path = DailySummary;
 			sourceTree = "<group>";
@@ -277,6 +280,7 @@
 				0F10000C0000000000000001 /* FocusSession.swift in Sources */,
 				0F10000D0000000000000001 /* FocusSessionStore.swift in Sources */,
 				0F10000E0000000000000001 /* DailySummaryViewModel.swift in Sources */,
+				0F1000110000000000000001 /* DailySummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

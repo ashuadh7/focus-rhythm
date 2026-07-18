@@ -3,11 +3,27 @@ import SwiftUI
 struct TimerHomeView: View {
     @State private var viewModel = FocusTimerViewModel()
     @State private var waterLoggingViewModel = WaterLoggingViewModel()
+    @State private var isShowingSummary = false
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
+        content
+            .sheet(isPresented: $isShowingSummary) {
+                DailySummaryView()
+            }
+    }
+
+    private var content: some View {
         VStack(spacing: 32) {
+            HStack {
+                Spacer()
+                Button("Today") { isShowingSummary = true }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 32)
+
             Spacer()
 
             VStack(spacing: 12) {
