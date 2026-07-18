@@ -103,7 +103,7 @@ final class FocusTimerViewModel {
             phase = .break
             remainingTime = breakDuration
         case .break:
-            phase = .idle
+            phase = .work
             remainingTime = workDuration
         default:
             break
