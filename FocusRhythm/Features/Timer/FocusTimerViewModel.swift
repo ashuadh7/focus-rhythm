@@ -12,17 +12,24 @@ final class FocusTimerViewModel {
     private(set) var breakDuration: TimeInterval
 
     private let settingsStore: TimerSettingsStoring
+    private let sessionStore: FocusSessionStoring
+    private let now: () -> Date
+    private var currentWorkStartedAt: Date?
 
     init(
         phase: FocusPhase = .idle,
         workDuration: TimeInterval? = nil,
         breakDuration: TimeInterval? = nil,
-        settingsStore: TimerSettingsStoring = UserDefaultsTimerSettingsStore()
+        settingsStore: TimerSettingsStoring = UserDefaultsTimerSettingsStore(),
+        sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
+        now: @escaping () -> Date = Date.init
     ) {
         let resolvedWorkDuration = workDuration ?? settingsStore.loadWorkDuration() ?? Self.defaultWorkDuration
         let resolvedBreakDuration = breakDuration ?? settingsStore.loadBreakDuration() ?? Self.defaultBreakDuration
 
         self.settingsStore = settingsStore
+        self.sessionStore = sessionStore
+        self.now = now
         self.phase = phase
         self.workDuration = resolvedWorkDuration
         self.breakDuration = resolvedBreakDuration
@@ -80,6 +87,7 @@ final class FocusTimerViewModel {
         case .idle:
             phase = .work
             remainingTime = workDuration
+            currentWorkStartedAt = now()
         case .work:
             phase = .workPaused
         case .break:
@@ -100,11 +108,13 @@ final class FocusTimerViewModel {
 
         switch phase {
         case .work:
+            recordCompletedWorkSession()
             phase = .break
             remainingTime = breakDuration
         case .break:
             phase = .work
             remainingTime = workDuration
+            currentWorkStartedAt = now()
         default:
             break
         }
@@ -118,5 +128,11 @@ final class FocusTimerViewModel {
         if phase == .idle {
             remainingTime = workDuration
         }
+    }
+
+    private func recordCompletedWorkSession() {
+        let startedAt = currentWorkStartedAt ?? now().addingTimeInterval(-workDuration)
+        sessionStore.addSession(startedAt: startedAt, endedAt: now(), duration: workDuration, completed: true)
+        currentWorkStartedAt = nil
     }
 }

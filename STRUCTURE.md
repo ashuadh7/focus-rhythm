@@ -11,12 +11,12 @@ Current file map for the native iOS scaffold.
 
 - `FocusRhythm/Features/Timer/` — timer home surface and timer state model.
 - `FocusRhythm/Features/BreakActivities/` — water logging prompt shown during breaks.
-- `FocusRhythm/Features/DailySummary/` — placeholder for end-of-day summary.
+- `FocusRhythm/Features/DailySummary/` — `DailySummaryViewModel` aggregates focus time, cycle count, and water for the day.
 
 ## Shared
 
-- `FocusRhythm/Models/` — cross-feature domain models (`FocusPhase`, `WaterLogEntry`).
-- `FocusRhythm/Persistence/` — local storage (timer settings, water logs).
+- `FocusRhythm/Models/` — cross-feature domain models (`FocusPhase`, `WaterLogEntry`, `FocusSession`).
+- `FocusRhythm/Persistence/` — local storage (timer settings, water logs, focus sessions).
 - `FocusRhythm/Resources/` — placeholder for app resources and assets.
 
 ## Tests
