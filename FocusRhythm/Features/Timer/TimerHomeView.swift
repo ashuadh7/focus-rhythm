@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TimerHomeView: View {
     @State private var viewModel = FocusTimerViewModel()
+    @State private var waterLoggingViewModel = WaterLoggingViewModel()
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -21,11 +22,15 @@ struct TimerHomeView: View {
                     .lineLimit(1)
                     .accessibilityLabel(accessibilityTimeLabel)
 
-                Text(viewModel.prompt)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                if viewModel.phase == .break || viewModel.phase == .breakPaused {
+                    WaterPromptView(viewModel: waterLoggingViewModel)
+                } else {
+                    Text(viewModel.prompt)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
             }
 
             Button(action: viewModel.togglePrimaryAction) {

@@ -13,6 +13,11 @@
 		0F1000040000000000000001 /* FocusPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000040000000000000001 /* FocusPhase.swift */; };
 		0F1000050000000000000001 /* FocusTimerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000050000000000000001 /* FocusTimerViewModelTests.swift */; };
 		0F1000060000000000000001 /* TimerSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000080000000000000001 /* TimerSettingsStore.swift */; };
+		0F1000070000000000000001 /* WaterLogEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000090000000000000001 /* WaterLogEntry.swift */; };
+		0F1000080000000000000001 /* WaterLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20000A0000000000000001 /* WaterLogStore.swift */; };
+		0F1000090000000000000001 /* WaterLoggingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20000B0000000000000001 /* WaterLoggingViewModel.swift */; };
+		0F10000A0000000000000001 /* WaterPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20000C0000000000000001 /* WaterPromptView.swift */; };
+		0F10000B0000000000000001 /* WaterLoggingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20000D0000000000000001 /* WaterLoggingViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,6 +39,11 @@
 		0F2000060000000000000001 /* FocusRhythm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FocusRhythm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F2000070000000000000001 /* FocusRhythmTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FocusRhythmTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F2000080000000000000001 /* TimerSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerSettingsStore.swift; sourceTree = "<group>"; };
+		0F2000090000000000000001 /* WaterLogEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterLogEntry.swift; sourceTree = "<group>"; };
+		0F20000A0000000000000001 /* WaterLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterLogStore.swift; sourceTree = "<group>"; };
+		0F20000B0000000000000001 /* WaterLoggingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterLoggingViewModel.swift; sourceTree = "<group>"; };
+		0F20000C0000000000000001 /* WaterPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterPromptView.swift; sourceTree = "<group>"; };
+		0F20000D0000000000000001 /* WaterLoggingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterLoggingViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,6 +115,8 @@
 		0F7000060000000000000001 /* BreakActivities */ = {
 			isa = PBXGroup;
 			children = (
+				0F20000B0000000000000001 /* WaterLoggingViewModel.swift */,
+				0F20000C0000000000000001 /* WaterPromptView.swift */,
 			);
 			path = BreakActivities;
 			sourceTree = "<group>";
@@ -120,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				0F2000040000000000000001 /* FocusPhase.swift */,
+				0F2000090000000000000001 /* WaterLogEntry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -128,6 +141,7 @@
 			isa = PBXGroup;
 			children = (
 				0F2000050000000000000001 /* FocusTimerViewModelTests.swift */,
+				0F20000D0000000000000001 /* WaterLoggingViewModelTests.swift */,
 			);
 			path = FocusRhythmTests;
 			sourceTree = "<group>";
@@ -145,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				0F2000080000000000000001 /* TimerSettingsStore.swift */,
+				0F20000A0000000000000001 /* WaterLogStore.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -240,6 +255,10 @@
 				0F1000030000000000000001 /* FocusTimerViewModel.swift in Sources */,
 				0F1000040000000000000001 /* FocusPhase.swift in Sources */,
 				0F1000060000000000000001 /* TimerSettingsStore.swift in Sources */,
+				0F1000070000000000000001 /* WaterLogEntry.swift in Sources */,
+				0F1000080000000000000001 /* WaterLogStore.swift in Sources */,
+				0F1000090000000000000001 /* WaterLoggingViewModel.swift in Sources */,
+				0F10000A0000000000000001 /* WaterPromptView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -248,6 +267,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0F1000050000000000000001 /* FocusTimerViewModelTests.swift in Sources */,
+				0F10000B0000000000000001 /* WaterLoggingViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
