@@ -16,7 +16,7 @@ final class InMemoryTimerSettingsStore: TimerSettingsStoring {
 
 final class FocusTimerViewModelTests: XCTestCase {
     func testDefaultDurationsMatchMVPDefaults() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
 
         XCTAssertEqual(viewModel.workDuration, 50 * 60)
         XCTAssertEqual(viewModel.breakDuration, 10 * 60)
@@ -24,7 +24,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testStartingFromIdleBeginsWorkBlock() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
 
         viewModel.togglePrimaryAction()
 
@@ -34,7 +34,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testTickCountsDownDuringWorkPhase() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
         viewModel.togglePrimaryAction()
 
         viewModel.tick(90)
@@ -44,7 +44,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testTickDoesNothingWhileIdle() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
 
         viewModel.tick(30)
 
@@ -53,7 +53,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testWorkPhaseAutomaticallyAdvancesToBreakWhenComplete() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
         viewModel.togglePrimaryAction()
 
         viewModel.tick(viewModel.workDuration)
@@ -63,7 +63,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testBreakPhaseAutomaticallyAdvancesToNextWorkBlockWhenComplete() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
         viewModel.togglePrimaryAction()
         viewModel.tick(viewModel.workDuration)
 
@@ -74,7 +74,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testFullCycleRepeatsWithoutManualRestart() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
         viewModel.togglePrimaryAction()
 
         viewModel.tick(viewModel.workDuration)
@@ -89,7 +89,7 @@ final class FocusTimerViewModelTests: XCTestCase {
     }
 
     func testPauseAndResumeDuringWorkBlock() {
-        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
         viewModel.togglePrimaryAction()
         viewModel.tick(60)
 
@@ -127,5 +127,29 @@ final class FocusTimerViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.workDuration, 20 * 60)
         XCTAssertEqual(viewModel.breakDuration, 3 * 60)
+    }
+
+    func testCompletingAWorkBlockRecordsACompletedSession() {
+        let sessionStore = InMemoryFocusSessionStore()
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: sessionStore)
+        viewModel.togglePrimaryAction()
+
+        viewModel.tick(viewModel.workDuration)
+
+        XCTAssertEqual(sessionStore.allSessions.count, 1)
+        XCTAssertEqual(sessionStore.allSessions.first?.duration, viewModel.workDuration)
+        XCTAssertEqual(sessionStore.allSessions.first?.completed, true)
+    }
+
+    func testFullCycleRecordsOneSessionPerCompletedWorkBlock() {
+        let sessionStore = InMemoryFocusSessionStore()
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: sessionStore)
+        viewModel.togglePrimaryAction()
+
+        viewModel.tick(viewModel.workDuration)
+        viewModel.tick(viewModel.breakDuration)
+        viewModel.tick(viewModel.workDuration)
+
+        XCTAssertEqual(sessionStore.allSessions.count, 2)
     }
 }
