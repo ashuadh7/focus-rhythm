@@ -62,14 +62,30 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.remainingTime, viewModel.breakDuration)
     }
 
-    func testBreakPhaseReturnsToIdleWhenComplete() {
+    func testBreakPhaseAutomaticallyAdvancesToNextWorkBlockWhenComplete() {
         let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
         viewModel.togglePrimaryAction()
         viewModel.tick(viewModel.workDuration)
 
         viewModel.tick(viewModel.breakDuration)
 
-        XCTAssertEqual(viewModel.phase, .idle)
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, viewModel.workDuration)
+    }
+
+    func testFullCycleRepeatsWithoutManualRestart() {
+        let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore())
+        viewModel.togglePrimaryAction()
+
+        viewModel.tick(viewModel.workDuration)
+        XCTAssertEqual(viewModel.phase, .break)
+
+        viewModel.tick(viewModel.breakDuration)
+        XCTAssertEqual(viewModel.phase, .work)
+
+        viewModel.tick(viewModel.workDuration)
+        XCTAssertEqual(viewModel.phase, .break)
+        XCTAssertEqual(viewModel.remainingTime, viewModel.breakDuration)
     }
 
     func testPauseAndResumeDuringWorkBlock() {
