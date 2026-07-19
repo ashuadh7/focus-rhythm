@@ -22,6 +22,11 @@ final class FocusTimerViewModel {
     private(set) var workDuration: TimeInterval
     private(set) var breakDuration: TimeInterval
 
+    /// Absolute wall-clock time the current phase ends, kept in sync with `remainingTime`.
+    /// Used to recompute `remainingTime` after the app resumes from background and to
+    /// schedule the local notification for the transition.
+    private(set) var phaseEndTime: Date?
+
     /// The original length of the phase currently running (before any add-time bonus).
     /// Differs from `workDuration`/`breakDuration` when the user picked a custom break
     /// length via the interrupt flow.
@@ -42,6 +47,7 @@ final class FocusTimerViewModel {
 
     private let settingsStore: TimerSettingsStoring
     private let sessionStore: FocusSessionStoring
+    private let notificationScheduler: NotificationScheduling
     private let now: () -> Date
     private var currentWorkStartedAt: Date?
 
@@ -51,6 +57,7 @@ final class FocusTimerViewModel {
         breakDuration: TimeInterval? = nil,
         settingsStore: TimerSettingsStoring = UserDefaultsTimerSettingsStore(),
         sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
+        notificationScheduler: NotificationScheduling = UNUserNotificationScheduler(),
         now: @escaping () -> Date = Date.init
     ) {
         let resolvedWorkDuration = workDuration ?? settingsStore.loadWorkDuration() ?? Self.defaultWorkDuration
@@ -58,6 +65,7 @@ final class FocusTimerViewModel {
 
         self.settingsStore = settingsStore
         self.sessionStore = sessionStore
+        self.notificationScheduler = notificationScheduler
         self.now = now
         self.phase = phase
         self.workDuration = resolvedWorkDuration
@@ -126,27 +134,52 @@ final class FocusTimerViewModel {
         currentPhaseDuration = workDuration
         currentWorkStartedAt = now()
         resetAddTime()
+        syncPhaseEndTime()
     }
 
     /// Advances the countdown by `interval` seconds. Called on a real timer tick in the
     /// running app, and directly with synthetic intervals in tests to avoid real-time waits.
+    /// Loops over multiple phase transitions when `interval` spans more than one phase, so
+    /// it also serves as the wall-clock catch-up path via `refreshForForeground()`.
     func tick(_ interval: TimeInterval = 1) {
         guard phase.isRunning, !isSelectingBreakDuration else { return }
-        remainingTime = max(0, remainingTime - interval)
-        guard remainingTime == 0 else { return }
+        var remainingInterval = interval
 
-        switch phase {
-        case .work:
-            recordCompletedWorkSession()
-            phase = .break
-            remainingTime = breakDuration
-            currentPhaseDuration = breakDuration
-            resetAddTime()
-        case .break:
-            transitionFromBreakToWork()
-        default:
-            break
+        while remainingInterval > 0, phase.isRunning, !isSelectingBreakDuration {
+            let consumed = min(remainingInterval, remainingTime)
+            remainingTime -= consumed
+            remainingInterval -= consumed
+            guard remainingTime == 0 else { break }
+
+            switch phase {
+            case .work:
+                recordCompletedWorkSession()
+                phase = .break
+                remainingTime = breakDuration
+                currentPhaseDuration = breakDuration
+                resetAddTime()
+            case .break:
+                transitionFromBreakToWork()
+            default:
+                break
+            }
         }
+
+        syncPhaseEndTime()
+    }
+
+    /// Recomputes `remainingTime` from wall-clock time, catching up through any phase
+    /// transitions that should have happened while the app was backgrounded/suspended.
+    /// Call on scene-phase becoming active.
+    func refreshForForeground() {
+        guard phase.isRunning, !isSelectingBreakDuration, let phaseEndTime else { return }
+        let secondsPastEnd = now().timeIntervalSince(phaseEndTime)
+        guard secondsPastEnd >= 0 else {
+            // Still time left; resync precisely in case background time drifted.
+            remainingTime = phaseEndTime.timeIntervalSince(now())
+            return
+        }
+        tick(remainingTime + secondsPastEnd)
     }
 
     /// Adds a one-time bonus chunk (20% of the current phase's original duration) on top
@@ -157,6 +190,7 @@ final class FocusTimerViewModel {
         remainingTime += bonus
         bonusAdded = bonus
         addTimeUsed = true
+        syncPhaseEndTime()
     }
 
     /// Called when the long-press to interrupt/skip completes (5s during work, 3s during break).
@@ -164,6 +198,7 @@ final class FocusTimerViewModel {
         switch phase {
         case .work:
             isSelectingBreakDuration = true
+            notificationScheduler.cancelPendingPhaseTransition()
         case .break:
             transitionFromBreakToWork()
         case .idle:
@@ -173,6 +208,7 @@ final class FocusTimerViewModel {
 
     func cancelBreakSelection() {
         isSelectingBreakDuration = false
+        syncPhaseEndTime()
     }
 
     /// Freezes the current work progress and starts a mid-work break of the chosen length
@@ -187,6 +223,7 @@ final class FocusTimerViewModel {
         currentPhaseDuration = cappedDuration
         isSelectingBreakDuration = false
         resetAddTime()
+        syncPhaseEndTime()
     }
 
     private func transitionFromBreakToWork() {
@@ -200,6 +237,7 @@ final class FocusTimerViewModel {
             currentWorkStartedAt = now()
         }
         resetAddTime()
+        syncPhaseEndTime()
     }
 
     func updateDurations(workDuration: TimeInterval, breakDuration: TimeInterval) {
@@ -250,12 +288,46 @@ final class FocusTimerViewModel {
         isEndingCycle = false
         isSelectingBreakDuration = false
         resetAddTime()
+        syncPhaseEndTime()
         return true
+    }
+
+    /// Requests local notification permission. Safe to call repeatedly (e.g. on every
+    /// app foreground); the system only prompts the user once.
+    func requestNotificationPermission() {
+        notificationScheduler.requestAuthorization()
     }
 
     private func resetAddTime() {
         addTimeUsed = false
         bonusAdded = 0
+    }
+
+    /// Keeps `phaseEndTime` in sync with `remainingTime` and (re)schedules or cancels the
+    /// local notification for the upcoming phase transition to match.
+    private func syncPhaseEndTime() {
+        guard phase.isRunning, !isSelectingBreakDuration else {
+            phaseEndTime = nil
+            notificationScheduler.cancelPendingPhaseTransition()
+            return
+        }
+
+        let endTime = now().addingTimeInterval(remainingTime)
+        phaseEndTime = endTime
+
+        let content = upcomingTransitionNotificationContent
+        notificationScheduler.schedulePhaseTransition(at: endTime, title: content.title, body: content.body)
+    }
+
+    private var upcomingTransitionNotificationContent: (title: String, body: String) {
+        switch phase {
+        case .work:
+            return ("Break time", "Your focus block is done. Time to drink water.")
+        case .break:
+            return ("Back to work", "Break's over. Time to start your next focus block.")
+        case .idle:
+            return ("", "")
+        }
     }
 
     private func recordCompletedWorkSession() {
