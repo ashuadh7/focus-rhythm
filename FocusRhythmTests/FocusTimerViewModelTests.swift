@@ -14,6 +14,29 @@ final class InMemoryTimerSettingsStore: TimerSettingsStoring {
     }
 }
 
+final class InMemoryNotificationScheduler: NotificationScheduling {
+    private(set) var authorizationRequested = false
+    private(set) var scheduledDate: Date?
+    private(set) var scheduledTitle: String?
+    private(set) var scheduledBody: String?
+
+    func requestAuthorization() {
+        authorizationRequested = true
+    }
+
+    func schedulePhaseTransition(at date: Date, title: String, body: String) {
+        scheduledDate = date
+        scheduledTitle = title
+        scheduledBody = body
+    }
+
+    func cancelPendingPhaseTransition() {
+        scheduledDate = nil
+        scheduledTitle = nil
+        scheduledBody = nil
+    }
+}
+
 final class FocusTimerViewModelTests: XCTestCase {
     func testDefaultDurationsMatchMVPDefaults() {
         let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
@@ -400,5 +423,100 @@ final class FocusTimerViewModelTests: XCTestCase {
         viewModel.requestEndCycle()
 
         XCTAssertFalse(viewModel.isEndingCycle)
+    }
+
+    // MARK: - Backgrounding / wall-clock recompute
+
+    func testStartingWorkSchedulesANotificationForThePhaseEndTime() {
+        let scheduler = InMemoryNotificationScheduler()
+        let currentDate = Date(timeIntervalSince1970: 0)
+        let viewModel = FocusTimerViewModel(
+            workDuration: 50 * 60,
+            breakDuration: 10 * 60,
+            settingsStore: InMemoryTimerSettingsStore(),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: scheduler,
+            now: { currentDate }
+        )
+
+        viewModel.start()
+
+        XCTAssertEqual(viewModel.phaseEndTime, currentDate.addingTimeInterval(50 * 60))
+        XCTAssertEqual(scheduler.scheduledDate, currentDate.addingTimeInterval(50 * 60))
+        XCTAssertNotNil(scheduler.scheduledTitle)
+    }
+
+    func testRefreshForForegroundRecomputesRemainingTimeWithoutCrossingPhaseBoundary() {
+        var currentDate = Date(timeIntervalSince1970: 0)
+        let viewModel = FocusTimerViewModel(
+            workDuration: 50 * 60,
+            breakDuration: 10 * 60,
+            settingsStore: InMemoryTimerSettingsStore(),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { currentDate }
+        )
+        viewModel.start()
+
+        currentDate = currentDate.addingTimeInterval(20 * 60) // backgrounded for 20 minutes
+        viewModel.refreshForForeground()
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, 30 * 60)
+    }
+
+    func testRefreshForForegroundCatchesUpThroughACompletedPhase() {
+        var currentDate = Date(timeIntervalSince1970: 0)
+        let sessionStore = InMemoryFocusSessionStore()
+        let viewModel = FocusTimerViewModel(
+            workDuration: 50 * 60,
+            breakDuration: 10 * 60,
+            settingsStore: InMemoryTimerSettingsStore(),
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { currentDate }
+        )
+        viewModel.start()
+
+        currentDate = currentDate.addingTimeInterval(55 * 60) // work finishes, 5 min into break
+        viewModel.refreshForForeground()
+
+        XCTAssertEqual(viewModel.phase, .break)
+        XCTAssertEqual(viewModel.remainingTime, 5 * 60)
+        XCTAssertEqual(sessionStore.allSessions.count, 1, "the completed work block should be recorded")
+    }
+
+    func testRefreshForForegroundCatchesUpThroughMultiplePhases() {
+        var currentDate = Date(timeIntervalSince1970: 0)
+        let viewModel = FocusTimerViewModel(
+            workDuration: 50 * 60,
+            breakDuration: 10 * 60,
+            settingsStore: InMemoryTimerSettingsStore(),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { currentDate }
+        )
+        viewModel.start()
+
+        currentDate = currentDate.addingTimeInterval(65 * 60) // work + break both finish, 5 min into next work
+        viewModel.refreshForForeground()
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, 45 * 60)
+    }
+
+    func testCompletingHoldToInterruptCancelsThePendingNotification() {
+        let scheduler = InMemoryNotificationScheduler()
+        let viewModel = FocusTimerViewModel(
+            settingsStore: InMemoryTimerSettingsStore(),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: scheduler
+        )
+        viewModel.start()
+        XCTAssertNotNil(scheduler.scheduledDate)
+
+        viewModel.completeHoldToInterrupt()
+
+        XCTAssertNil(scheduler.scheduledDate)
     }
 }

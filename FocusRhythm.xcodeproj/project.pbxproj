@@ -24,6 +24,7 @@
 		0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000110000000000000001 /* FocusSessionStoreTests.swift */; };
 		0F1000100000000000000001 /* DailySummaryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000120000000000000001 /* DailySummaryViewModelTests.swift */; };
 		0F1000110000000000000001 /* DailySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000130000000000000001 /* DailySummaryView.swift */; };
+		0F1000120000000000000001 /* NotificationScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000140000000000000001 /* NotificationScheduling.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 		0F2000110000000000000001 /* FocusSessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSessionStoreTests.swift; sourceTree = "<group>"; };
 		0F2000120000000000000001 /* DailySummaryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryViewModelTests.swift; sourceTree = "<group>"; };
 		0F2000130000000000000001 /* DailySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryView.swift; sourceTree = "<group>"; };
+		0F2000140000000000000001 /* NotificationScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduling.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -178,6 +180,7 @@
 				0F2000080000000000000001 /* TimerSettingsStore.swift */,
 				0F20000A0000000000000001 /* WaterLogStore.swift */,
 				0F20000F0000000000000001 /* FocusSessionStore.swift */,
+				0F2000140000000000000001 /* NotificationScheduling.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -281,6 +284,7 @@
 				0F10000D0000000000000001 /* FocusSessionStore.swift in Sources */,
 				0F10000E0000000000000001 /* DailySummaryViewModel.swift in Sources */,
 				0F1000110000000000000001 /* DailySummaryView.swift in Sources */,
+				0F1000120000000000000001 /* NotificationScheduling.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

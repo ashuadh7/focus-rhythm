@@ -8,6 +8,7 @@ struct TimerHomeView: View {
     @State private var holdTimer: Timer?
     @State private var pickerDuration: TimeInterval = FocusTimerViewModel.defaultBreakDuration
     @State private var endCycleReasoning = ""
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let workHoldDuration: TimeInterval = 5
     private static let breakHoldDuration: TimeInterval = 3
@@ -31,6 +32,14 @@ struct TimerHomeView: View {
                 set: { if !$0 { viewModel.cancelEndCycle() } }
             )) {
                 endCycleSheet
+            }
+            .task {
+                viewModel.requestNotificationPermission()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    viewModel.refreshForForeground()
+                }
             }
     }
 
