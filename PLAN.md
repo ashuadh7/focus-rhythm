@@ -1,48 +1,139 @@
 # Plan
 
-Working scope, roadmap, and notes-to-self. This file changes often; the [README](README.md) is the stable picture.
+Working scope, roadmap, and notes-to-self. This file changes at phase boundaries; the
+[README](README.md) is the stable product picture and GitHub Issues hold implementation-level work.
 
-## MVP scope (v0.1) — for me, right now
+## Completed: v0.1 — Continuous focus loop
 
-The smallest version that's actually usable for myself:
+The first functional batch proved the basic work/break rhythm:
 
-- [ ] Configurable work timer (default 50 min) and break timer (default 10 min)
-- [ ] Auto-start break when work ends; auto-start next work block when break ends *(this is the key differentiator — no manual restart)*
-- [ ] **One** integrated break activity: water logging. Break screen shows: "Drink water — log how much" with quick-tap amounts (250ml / 500ml / custom)
-- [ ] Local storage of sessions and water logs
-- [ ] End-of-day summary: total focus time, number of cycles, total water logged
-- [ ] Manual session pause / skip break (escape hatches matter)
+- [x] Configurable work timer (default 50 min) and break timer (default 10 min)
+- [x] Automatic work → break → work transitions without manual restarts
+- [x] Water prompt and one-tap logging during breaks
+- [x] Local persistence of timer settings, focus sessions, and water logs
+- [x] Daily summary of focus time, completed cycles, and water
+- [x] Humane, bounded escape hatches:
+  - hold to take a short mid-work break and then resume the unfinished work
+  - hold to skip a break
+  - one time-limited extension near the end of a phase
+  - deliberate confirmation before ending the whole cycle
+- [x] Wall-clock correction after backgrounding and local transition notifications
 
-That's it. Ship this. Use it for two weeks. Then expand.
+The app is now a functional continuous Pomodoro-style loop. The next phase is not
+"more Pomodoro features"; it is turning that loop into a finite daily rhythm.
 
-## Roadmap (post-MVP, in rough priority order)
+## Active direction: v0.2 — Finite daily rhythm
 
-**v0.2 — More break activities**
-- Pushups counter (tap to log reps)
-- Floss check-off
-- Stretch / walk timer with prompt
+### Outcome
 
-**v0.3 — End-of-day reflection**
-- 1–5 day rating
-- Free-text note ("what worked, what didn't")
-- Productivity self-rating
+In the morning, select or lightly adjust a normal day, press Start, and let the app
+carry the day through short work/break cycles, long breaks, and a definite ending.
 
-**v0.4 — Smarter break selection**
-- Rotate through activities so you don't get the same prompt every break
-- Different prompts based on time of day (morning = pushups, afternoon = walk)
-- Longer breaks (15–20 min) get bigger activities; short breaks get water/stretch
+### Scope
 
-**v0.5 — App blocking during work**
-- iOS Screen Time API integration to lock distracting apps during focus blocks
+- [ ] Save one reusable default daily rhythm:
+  - start and end time
+  - work and short-break durations
+  - repeating work sections
+  - anchored long breaks
+- [ ] Generate a dated timeline of work, short-break, and long-break intervals
+- [ ] Preview start/end, expected focus time, session count, and long breaks before starting
+- [ ] Support "start as planned," "start now," and a today-only adjustment
+- [ ] Drive the timer from the generated timeline instead of an endless two-phase loop
+- [ ] Show a quiet `Now / Next` runtime view
+- [ ] Persist and restore the active daily run after full app termination
+- [ ] Schedule known transition notifications in advance and reschedule after changes
+- [ ] Preserve the existing soft landings within the daily timeline:
+  - extensions and inserted short breaks shift later flexible intervals
+  - long breaks and day end remain fixed anchors
+  - overflow trims or drops the final incomplete focus interval rather than eroding every break
+- [ ] Give long breaks a soft exit ramp:
+  - main break
+  - five-minute wrap-up warning
+  - two-minute final return warning
+- [ ] Stop automatically at the configured day end and show planned versus actual focus
 
-**v0.6+ — Maybe**
-- HealthKit sync (water, exercise minutes)
-- Notion Calendar export of daily summaries
-- Apple Watch companion for break prompts
-- Widget / Live Activity for current cycle state
+### Explicitly out of scope for v0.2
 
-## Notes-to-self while building this
+- Break-activity library or automatic chore placement
+- Work task management
+- Drag-and-drop calendar editing
+- LLM/API integration or schedule-file import
+- Live Activity / Dynamic Island
+- Sophisticated schedule optimization
 
-- Watch what happens on day 4 and day 14 — that's where most personal trackers die.
-- If I find myself adding a feature that makes the app "more useful for other people," stop. Ship for me first.
-- The friend's gaming-app project showed: imperfect-and-shipped beats perfect-and-stalled.
+### Recommended issue order
+
+1. Model and validate a reusable daily rhythm and generated intervals.
+2. Add morning setup and a generated schedule preview.
+3. Drive the timer from the finite daily schedule.
+4. Persist and restore an active daily run.
+5. Schedule and reschedule the day's transition notifications.
+6. Integrate existing extensions/interruption controls with fixed anchors.
+7. Add long-break exit warnings and intentional day completion.
+8. Extend the daily summary with planned-versus-actual focus.
+
+## Next: v0.3 — Recurring break routines
+
+Add a small reusable activity library so routine chores and healthy habits are
+configured once, then assigned automatically to compatible breaks.
+
+Each routine may define:
+
+- Name and approximate active duration
+- Frequency: every eligible break, a number of times per day, or once per day
+- Period: morning, midday, afternoon, or anytime
+- Eligible break type: short, long, or either
+- Optional minimum spacing between repetitions
+- Enabled/disabled state
+
+Examples include boiling water several times in the morning, flossing once during
+the day, or preparing lunch during a long midday break.
+
+The remainder of a break stays real rest. Completing a two-minute routine must not
+end a ten-minute break, and skipping an activity must not require an explanation.
+
+Do not add randomization, ranking, mood selection, or drag-and-drop placement in
+this phase. Water logging should eventually become one activity in this general
+system rather than a permanent special case.
+
+## Later: v0.4 — Work targets
+
+Define this phase only after the work-side requirements are understood. The current
+direction is deliberately narrower than a task manager:
+
+- Give each large work section one intended outcome
+- Optionally show one current target during a focus interval
+- Between intervals, continue, select the next target, or mark it complete
+
+Avoid importing or duplicating a full to-do system until the daily rhythm and
+break-routine loop have proved useful in real use.
+
+## Later roadmap
+
+**v0.5 — JSON import/export**
+
+- Use a versioned representation of the now-stable daily rhythm and generated schedule
+- Validate and preview imported schedules before accepting them
+- Allow external services such as ChatGPT or Claude to prepare a schedule without embedding a paid API
+
+**v0.6 — Ambient system surfaces**
+
+- Live Activity / Dynamic Island countdown (GitHub issue #15)
+- Lock Screen presentation
+- Widget only if it supports the same quiet `Now / Next` interaction
+
+**v0.7 — End-of-day reflection**
+
+- Optional 1–5 day rating
+- Optional short note about what worked
+- No streaks, shame states, or productivity score optimization
+
+## Notes-to-self while building
+
+- Build for one real day before building for every possible routine.
+- Configure recurring constraints once; generate repetition automatically.
+- A plan must survive lateness and interruption without demanding a new planning session.
+- Fixed anchors should be trustworthy. Flexible intervals may move or disappear.
+- Watch what happens on day 4 and day 14 — that is where personal trackers usually fail.
+- If a feature makes the app broadly marketable but does not make the daily rhythm calmer, park it.

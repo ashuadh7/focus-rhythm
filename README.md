@@ -10,9 +10,10 @@ Most habit trackers fail because logging is a separate, deliberate act — you h
 
 Most focus timers (Pomodoro apps) tell you to take a break, but what you do during that break is on you. So you scroll Twitter and call it "rest."
 
-`focus-rhythm` collapses both problems into one loop: **work blocks are protected, and breaks are pre-loaded with the small things you actually want to do.** Drink water. Stretch. Floss. The break isn't a passive timer — it's a guided 5–10 minutes with a clear, single prompt that auto-transitions back to work when done.
+`focus-rhythm` collapses both problems into one loop: **work blocks are protected, and breaks can carry the small things you actually want to do.** Drink water. Stretch. Floss. The goal is a finite daily rhythm that can be set in the morning and trusted to move through work, short breaks, long breaks, and the end of the day without repeated planning.
 
-The hypothesis: habits stick when they're *embedded in a rhythm you already need*, not appended as a chore.
+The hypothesis: decisions become easier and habits become more consistent when they
+are *embedded in a reusable rhythm you already need*, not negotiated again every hour.
 
 ## Core insight
 
@@ -21,7 +22,8 @@ Two kinds of habits, two solutions:
 - **Real-time / many-times-a-day** (water, posture, micro-movement) → enforced via break-time prompts during a focus session.
 - **End-of-day reflection** (rate the day, did I floss, did I do my pushups) → a single 30-second evening check-in.
 
-The app is one rhythm with two phases per cycle (work → break) and one ritual per day (evening review).
+The app begins with a repeating work → break cycle and grows into one finite daily
+rhythm with larger work sections, long breaks, recurring routines, and an intentional end.
 
 ## Design north star: ambient, not appy
 
@@ -63,16 +65,16 @@ The aesthetic goal is "a good watch face," not "a productivity dashboard." This 
 
 **Core dependencies (kept minimal):**
 - SwiftUI for UI
-- SwiftData (or Core Data) for local persistence
+- UserDefaults with Codable models for current local persistence
 - UserNotifications for cycle transitions
 - ActivityKit for Live Activities (post-MVP)
 
-## Repo structure (planned)
+## Repository structure
 
 ```
 focus-rhythm/
 ├── README.md
-├── PLAN.md                   # MVP scope, roadmap, working notes
+├── PLAN.md                   # Active scope, roadmap, working notes
 ├── FocusRhythm.xcodeproj
 ├── docs/
 │   ├── design-notes.md       # Interaction design rationale
@@ -84,8 +86,7 @@ focus-rhythm/
 │   │   ├── BreakActivities/
 │   │   └── DailySummary/
 │   ├── Models/
-│   ├── Persistence/
-│   └── Resources/
+│   └── Persistence/
 ├── FocusRhythmTests/
 └── .gitignore
 ```
@@ -103,7 +104,7 @@ open FocusRhythm.xcodeproj
 
 **Requirements:**
 - Xcode 16+
-- iOS 17+ deployment target (for SwiftData and Live Activities)
+- iOS 17+ deployment target
 - Apple Developer account (for device testing)
 
 **Build from the command line:**
@@ -118,7 +119,13 @@ xcodebuild \
 
 ## Status
 
-🌱 **MVP scaffold** — native iOS project initialized with the timer home screen as the app entry point. See [PLAN.md](PLAN.md) for current scope and roadmap.
+✅ **v0.1 continuous focus loop complete** — the app has configurable and automatic
+work/break timers, water logging, local persistence, a daily summary, bounded
+interruption/extension controls, and background-time correction with notifications.
+
+The active product phase is **v0.2: finite daily rhythm** — generating and running a
+recoverable day with work sections, short breaks, long breaks, and a definite end.
+See [PLAN.md](PLAN.md) for scope and sequencing.
 
 ## License
 
