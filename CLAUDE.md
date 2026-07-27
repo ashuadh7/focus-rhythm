@@ -12,7 +12,13 @@ Minimal, token-conscious. Update only at phase transitions or workflow changes â
 
 ## Current phase
 
-MVP not started â€” no code yet. Stack is iOS native (Swift + SwiftUI). Next: initialize Xcode project, then work issues from PLAN.md MVP checklist.
+v0.1 is complete: the native SwiftUI app has a continuous work/break loop, water
+logging, local history and summary, bounded soft landings, and background-time
+correction with local notifications.
+
+The active direction is v0.2: generate and run a finite, recoverable daily rhythm
+with larger work sections, anchored long breaks, and a definite end. Read PLAN.md
+before creating or restructuring issues; the order there reflects model dependencies.
 
 ## Workflow
 

@@ -38,6 +38,3 @@ Rules:
         ---
 
         Key insight to keep in mind: you're not after a long narrative. You want a punchy tagline that reframes scattered tasks as chapters of one story. Today's was *"Grounding myself in the problem space"* — that's the template.
-
-
-- **Break Timer Sequence (Flow Exit Ramp).** When taking a longer break mid-work session, automatically trigger a three-phase timer: a main break timer for the full break duration, followed by a five-minute soft exit ramp to begin wrapping up and pruning tabs/distractions, followed by a two-minute hard cutoff to fully stop and return to work. The goal is to remove the decision of "when do I stop the break" — the structure handles it so the transition back to work happens automatically and without negotiation.
