@@ -12,3 +12,17 @@ For each GitHub issue assigned in a new chat:
 
 Do not skip the manual-review or double-verification gates. Do not merge merely because
 automated checks pass.
+
+## GitHub Authentication
+
+The GitHub CLI credentials for this repository are stored in the macOS Keychain. A
+`gh auth status` command run inside the restricted workspace sandbox may be unable to
+read that keyring and can incorrectly report that the token is invalid.
+
+Before asking the user to authenticate again:
+
+1. Run `gh auth status -h github.com` with system/Keychain access.
+2. Treat that result as authoritative.
+3. Request a new login only if the system-access check also fails.
+
+Do not infer that authentication has expired from the sandboxed check alone.
