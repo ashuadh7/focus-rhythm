@@ -25,6 +25,9 @@
 		0F1000100000000000000001 /* DailySummaryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000120000000000000001 /* DailySummaryViewModelTests.swift */; };
 		0F1000110000000000000001 /* DailySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000130000000000000001 /* DailySummaryView.swift */; };
 		0F1000120000000000000001 /* NotificationScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000140000000000000001 /* NotificationScheduling.swift */; };
+		0F1000130000000000000001 /* DailyRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000150000000000000001 /* DailyRhythm.swift */; };
+		0F1000140000000000000001 /* DailyScheduleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000160000000000000001 /* DailyScheduleGenerator.swift */; };
+		0F1000150000000000000001 /* DailyScheduleGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +61,9 @@
 		0F2000120000000000000001 /* DailySummaryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryViewModelTests.swift; sourceTree = "<group>"; };
 		0F2000130000000000000001 /* DailySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySummaryView.swift; sourceTree = "<group>"; };
 		0F2000140000000000000001 /* NotificationScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduling.swift; sourceTree = "<group>"; };
+		0F2000150000000000000001 /* DailyRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyRhythm.swift; sourceTree = "<group>"; };
+		0F2000160000000000000001 /* DailyScheduleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScheduleGenerator.swift; sourceTree = "<group>"; };
+		0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScheduleGeneratorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,6 +156,8 @@
 				0F2000040000000000000001 /* FocusPhase.swift */,
 				0F2000090000000000000001 /* WaterLogEntry.swift */,
 				0F20000E0000000000000001 /* FocusSession.swift */,
+				0F2000150000000000000001 /* DailyRhythm.swift */,
+				0F2000160000000000000001 /* DailyScheduleGenerator.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -161,6 +169,7 @@
 				0F20000D0000000000000001 /* WaterLoggingViewModelTests.swift */,
 				0F2000110000000000000001 /* FocusSessionStoreTests.swift */,
 				0F2000120000000000000001 /* DailySummaryViewModelTests.swift */,
+				0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */,
 			);
 			path = FocusRhythmTests;
 			sourceTree = "<group>";
@@ -285,6 +294,8 @@
 				0F10000E0000000000000001 /* DailySummaryViewModel.swift in Sources */,
 				0F1000110000000000000001 /* DailySummaryView.swift in Sources */,
 				0F1000120000000000000001 /* NotificationScheduling.swift in Sources */,
+				0F1000130000000000000001 /* DailyRhythm.swift in Sources */,
+				0F1000140000000000000001 /* DailyScheduleGenerator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,6 +307,7 @@
 				0F10000B0000000000000001 /* WaterLoggingViewModelTests.swift in Sources */,
 				0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */,
 				0F1000100000000000000001 /* DailySummaryViewModelTests.swift in Sources */,
+				0F1000150000000000000001 /* DailyScheduleGeneratorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
