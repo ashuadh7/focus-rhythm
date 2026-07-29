@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TimerHomeView: View {
-    @State private var viewModel = FocusTimerViewModel()
+    @State private var viewModel: FocusTimerViewModel
     @State private var waterLoggingViewModel = WaterLoggingViewModel()
     @State private var isShowingSummary = false
     @State private var holdProgress: CGFloat = 0
@@ -9,12 +9,25 @@ struct TimerHomeView: View {
     @State private var pickerDuration: TimeInterval = FocusTimerViewModel.defaultBreakDuration
     @State private var endCycleReasoning = ""
     @Environment(\.scenePhase) private var scenePhase
+    private let onEndDay: () -> Void
 
     private static let workHoldDuration: TimeInterval = 5
     private static let breakHoldDuration: TimeInterval = 3
     private static let holdTickInterval: TimeInterval = 0.05
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    init(
+        workDuration: TimeInterval? = nil,
+        breakDuration: TimeInterval? = nil,
+        onEndDay: @escaping () -> Void = {}
+    ) {
+        _viewModel = State(initialValue: FocusTimerViewModel(
+            workDuration: workDuration,
+            breakDuration: breakDuration
+        ))
+        self.onEndDay = onEndDay
+    }
 
     var body: some View {
         content
@@ -241,7 +254,11 @@ struct TimerHomeView: View {
                     Button("Keep going") { viewModel.cancelEndCycle() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Stop") { viewModel.confirmEndCycle(reasoning: endCycleReasoning) }
+                    Button("Stop") {
+                        if viewModel.confirmEndCycle(reasoning: endCycleReasoning) {
+                            onEndDay()
+                        }
+                    }
                         .disabled(endCycleWordCount < FocusTimerViewModel.endCycleMinimumWordCount)
                 }
             }
