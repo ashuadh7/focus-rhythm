@@ -121,6 +121,76 @@ struct DailyScheduleGenerator {
         )
     }
 
+    /// Regenerates the flexible portion of a rhythm from the current instant while
+    /// retaining future anchored breaks and the configured day end.
+    func generateStartingNow(
+        rhythm: DailyRhythm,
+        at now: Date,
+        calendar: Calendar
+    ) throws -> GeneratedDailySchedule {
+        try validate(rhythm)
+
+        let configuredStart = try resolve(rhythm.dayStart, field: "Day start", on: now, calendar: calendar)
+        let dayEnd = try resolve(rhythm.dayEnd, field: "Day end", on: now, calendar: calendar)
+        guard now < dayEnd else {
+            throw DailyRhythmValidationError.dayStartMustPrecedeEnd
+        }
+
+        let effectiveStart = max(now, configuredStart)
+        var intervals: [ScheduledInterval] = []
+
+        for (index, section) in rhythm.workSections.enumerated() {
+            let start = try resolve(
+                section.startTime,
+                field: "Work section \(index + 1) start",
+                on: now,
+                calendar: calendar
+            )
+            let end = try resolve(
+                section.endTime,
+                field: "Work section \(index + 1) end",
+                on: now,
+                calendar: calendar
+            )
+            guard end > effectiveStart else { continue }
+            intervals.append(contentsOf: fill(
+                sectionFrom: max(start, effectiveStart),
+                to: end,
+                rhythm: rhythm
+            ))
+        }
+
+        for (index, longBreak) in rhythm.longBreaks.enumerated() {
+            let start = try resolve(
+                longBreak.startTime,
+                field: "Long break \(index + 1) start",
+                on: now,
+                calendar: calendar
+            )
+            let end = try resolve(
+                longBreak.endTime,
+                field: "Long break \(index + 1) end",
+                on: now,
+                calendar: calendar
+            )
+            guard start >= effectiveStart else { continue }
+            intervals.append(ScheduledInterval(
+                kind: .longBreak(name: longBreak.name),
+                startDate: start,
+                endDate: end,
+                isAnchored: true
+            ))
+        }
+
+        intervals.sort { $0.startDate == $1.startDate ? $0.endDate < $1.endDate : $0.startDate < $1.startDate }
+        return GeneratedDailySchedule(
+            rhythmName: rhythm.name,
+            dayStart: effectiveStart,
+            dayEnd: dayEnd,
+            intervals: intervals
+        )
+    }
+
     func validate(_ rhythm: DailyRhythm) throws {
         let times: [(String, TimeOfDay)] =
             [("Day start", rhythm.dayStart), ("Day end", rhythm.dayEnd)]

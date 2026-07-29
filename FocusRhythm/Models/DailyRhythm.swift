@@ -1,8 +1,8 @@
 import Foundation
 
 struct TimeOfDay: Codable, Equatable, Hashable, Comparable {
-    let hour: Int
-    let minute: Int
+    var hour: Int
+    var minute: Int
 
     init(hour: Int, minute: Int) {
         self.hour = hour
@@ -19,8 +19,8 @@ struct TimeOfDay: Codable, Equatable, Hashable, Comparable {
 }
 
 struct WorkSection: Codable, Equatable, Hashable {
-    let startTime: TimeOfDay
-    let endTime: TimeOfDay
+    var startTime: TimeOfDay
+    var endTime: TimeOfDay
 
     init(startTime: TimeOfDay, endTime: TimeOfDay) {
         self.startTime = startTime
@@ -29,9 +29,9 @@ struct WorkSection: Codable, Equatable, Hashable {
 }
 
 struct AnchoredLongBreak: Codable, Equatable, Hashable {
-    let name: String
-    let startTime: TimeOfDay
-    let endTime: TimeOfDay
+    var name: String
+    var startTime: TimeOfDay
+    var endTime: TimeOfDay
 
     init(name: String, startTime: TimeOfDay, endTime: TimeOfDay) {
         self.name = name
@@ -46,14 +46,14 @@ enum FinalPartialFocusBehavior: String, Codable, Equatable {
 }
 
 struct DailyRhythm: Codable, Equatable {
-    let name: String
-    let dayStart: TimeOfDay
-    let dayEnd: TimeOfDay
-    let workDuration: TimeInterval
-    let shortBreakDuration: TimeInterval
-    let workSections: [WorkSection]
-    let longBreaks: [AnchoredLongBreak]
-    let finalPartialFocusBehavior: FinalPartialFocusBehavior
+    var name: String
+    var dayStart: TimeOfDay
+    var dayEnd: TimeOfDay
+    var workDuration: TimeInterval
+    var shortBreakDuration: TimeInterval
+    var workSections: [WorkSection]
+    var longBreaks: [AnchoredLongBreak]
+    var finalPartialFocusBehavior: FinalPartialFocusBehavior
 
     init(
         name: String,
@@ -76,13 +76,13 @@ struct DailyRhythm: Codable, Equatable {
     }
 }
 
-enum ScheduledIntervalKind: Equatable {
+enum ScheduledIntervalKind: Codable, Equatable {
     case focus
     case shortBreak
     case longBreak(name: String)
 }
 
-struct ScheduledInterval: Equatable {
+struct ScheduledInterval: Codable, Equatable {
     let kind: ScheduledIntervalKind
     let startDate: Date
     let endDate: Date
@@ -107,7 +107,7 @@ struct LongBreakDetails: Equatable {
     }
 }
 
-struct GeneratedDailySchedule: Equatable {
+struct GeneratedDailySchedule: Codable, Equatable {
     let rhythmName: String
     let dayStart: Date
     let dayEnd: Date

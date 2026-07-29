@@ -28,6 +28,12 @@
 		0F1000130000000000000001 /* DailyRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000150000000000000001 /* DailyRhythm.swift */; };
 		0F1000140000000000000001 /* DailyScheduleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000160000000000000001 /* DailyScheduleGenerator.swift */; };
 		0F1000150000000000000001 /* DailyScheduleGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */; };
+		0F1000160000000000000001 /* RhythmLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000180000000000000001 /* RhythmLibrary.swift */; };
+		0F1000170000000000000001 /* RhythmLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000190000000000000001 /* RhythmLibraryStore.swift */; };
+		0F1000180000000000000001 /* RhythmSetupViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001A0000000000000001 /* RhythmSetupViewModel.swift */; };
+		0F1000190000000000000001 /* RhythmSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001B0000000000000001 /* RhythmSetupView.swift */; };
+		0F10001A0000000000000001 /* RhythmLibraryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001C0000000000000001 /* RhythmLibraryStoreTests.swift */; };
+		0F10001B0000000000000001 /* RhythmSetupViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +70,12 @@
 		0F2000150000000000000001 /* DailyRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyRhythm.swift; sourceTree = "<group>"; };
 		0F2000160000000000000001 /* DailyScheduleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScheduleGenerator.swift; sourceTree = "<group>"; };
 		0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScheduleGeneratorTests.swift; sourceTree = "<group>"; };
+		0F2000180000000000000001 /* RhythmLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmLibrary.swift; sourceTree = "<group>"; };
+		0F2000190000000000000001 /* RhythmLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmLibraryStore.swift; sourceTree = "<group>"; };
+		0F20001A0000000000000001 /* RhythmSetupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmSetupViewModel.swift; sourceTree = "<group>"; };
+		0F20001B0000000000000001 /* RhythmSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmSetupView.swift; sourceTree = "<group>"; };
+		0F20001C0000000000000001 /* RhythmLibraryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmLibraryStoreTests.swift; sourceTree = "<group>"; };
+		0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmSetupViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,6 +131,7 @@
 				0F7000050000000000000001 /* Timer */,
 				0F7000060000000000000001 /* BreakActivities */,
 				0F7000070000000000000001 /* DailySummary */,
+				0F70000D0000000000000001 /* RhythmSetup */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -150,6 +163,15 @@
 			path = DailySummary;
 			sourceTree = "<group>";
 		};
+		0F70000D0000000000000001 /* RhythmSetup */ = {
+			isa = PBXGroup;
+			children = (
+				0F20001A0000000000000001 /* RhythmSetupViewModel.swift */,
+				0F20001B0000000000000001 /* RhythmSetupView.swift */,
+			);
+			path = RhythmSetup;
+			sourceTree = "<group>";
+		};
 		0F7000080000000000000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -158,6 +180,7 @@
 				0F20000E0000000000000001 /* FocusSession.swift */,
 				0F2000150000000000000001 /* DailyRhythm.swift */,
 				0F2000160000000000000001 /* DailyScheduleGenerator.swift */,
+				0F2000180000000000000001 /* RhythmLibrary.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -170,6 +193,8 @@
 				0F2000110000000000000001 /* FocusSessionStoreTests.swift */,
 				0F2000120000000000000001 /* DailySummaryViewModelTests.swift */,
 				0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */,
+				0F20001C0000000000000001 /* RhythmLibraryStoreTests.swift */,
+				0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */,
 			);
 			path = FocusRhythmTests;
 			sourceTree = "<group>";
@@ -190,6 +215,7 @@
 				0F20000A0000000000000001 /* WaterLogStore.swift */,
 				0F20000F0000000000000001 /* FocusSessionStore.swift */,
 				0F2000140000000000000001 /* NotificationScheduling.swift */,
+				0F2000190000000000000001 /* RhythmLibraryStore.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -296,6 +322,10 @@
 				0F1000120000000000000001 /* NotificationScheduling.swift in Sources */,
 				0F1000130000000000000001 /* DailyRhythm.swift in Sources */,
 				0F1000140000000000000001 /* DailyScheduleGenerator.swift in Sources */,
+				0F1000160000000000000001 /* RhythmLibrary.swift in Sources */,
+				0F1000170000000000000001 /* RhythmLibraryStore.swift in Sources */,
+				0F1000180000000000000001 /* RhythmSetupViewModel.swift in Sources */,
+				0F1000190000000000000001 /* RhythmSetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +338,8 @@
 				0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */,
 				0F1000100000000000000001 /* DailySummaryViewModelTests.swift in Sources */,
 				0F1000150000000000000001 /* DailyScheduleGeneratorTests.swift in Sources */,
+				0F10001A0000000000000001 /* RhythmLibraryStoreTests.swift in Sources */,
+				0F10001B0000000000000001 /* RhythmSetupViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
