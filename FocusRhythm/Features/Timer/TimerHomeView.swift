@@ -29,6 +29,11 @@ struct TimerHomeView: View {
         self.onEndDay = onEndDay
     }
 
+    init(run: ActiveRhythmRun, onEndDay: @escaping () -> Void = {}) {
+        _viewModel = State(initialValue: FocusTimerViewModel(run: run))
+        self.onEndDay = onEndDay
+    }
+
     var body: some View {
         content
             .sheet(isPresented: $isShowingSummary) {
@@ -80,6 +85,18 @@ struct TimerHomeView: View {
                     .lineLimit(1)
                     .accessibilityLabel(accessibilityTimeLabel)
 
+                if let next = viewModel.nextTransition {
+                    Text("Next: \(next.title) at \(next.date.formatted(date: .omitted, time: .shortened))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let dayEnd = viewModel.dayEnd {
+                    Text("Day ends \(dayEnd.formatted(date: .omitted, time: .shortened))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 if viewModel.isBonusLowTimeWarningVisible {
                     Text("Bonus time almost up")
                         .font(.footnote.weight(.medium))
@@ -90,7 +107,7 @@ struct TimerHomeView: View {
                         .foregroundStyle(.orange)
                 }
 
-                if viewModel.phase == .break {
+                if viewModel.phase == .break || viewModel.phase == .shortBreak {
                     WaterPromptView(viewModel: waterLoggingViewModel)
                 } else {
                     Text(viewModel.prompt)
@@ -101,16 +118,24 @@ struct TimerHomeView: View {
                 }
             }
 
-            primaryControl
+            if !viewModel.isScheduleDriven && viewModel.phase != .completedDay {
+                primaryControl
+            } else {
+                if viewModel.phase == .completedDay {
+                    Button("Return to setup", action: onEndDay)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
 
             if viewModel.isAddTimeAvailable {
                 Button("Add time") { viewModel.addTime() }
                     .font(.subheadline.weight(.medium))
             }
 
-            if viewModel.phase == .idle {
-                durationControls
-            } else {
+            if viewModel.phase == .idle, viewModel.dayEnd == nil {
+                Button("Set up today’s rhythm", action: onEndDay)
+                    .font(.subheadline.weight(.medium))
+            } else if viewModel.phase.isRunning {
                 Button("End for today") {
                     endCycleReasoning = ""
                     viewModel.requestEndCycle()
@@ -164,15 +189,21 @@ struct TimerHomeView: View {
             return "Focus (hold to take a break)"
         case .break:
             return "Break (hold to skip)"
+        case .shortBreak:
+            return "Short break"
+        case .longBreak:
+            return "Long break"
+        case .completedDay:
+            return "Complete"
         }
     }
 
     private var currentHoldDuration: TimeInterval {
-        viewModel.phase == .break ? Self.breakHoldDuration : Self.workHoldDuration
+        (viewModel.phase == .break || viewModel.phase == .shortBreak) ? Self.breakHoldDuration : Self.workHoldDuration
     }
 
     private func beginHoldIfNeeded() {
-        guard viewModel.phase.isRunning, holdTimer == nil else { return }
+        guard (viewModel.phase == .work || viewModel.phase == .break), holdTimer == nil else { return }
         holdProgress = 0
         let holdDuration = currentHoldDuration
         holdTimer = Timer.scheduledTimer(withTimeInterval: Self.holdTickInterval, repeats: true) { timer in
