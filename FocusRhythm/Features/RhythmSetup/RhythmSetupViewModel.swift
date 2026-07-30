@@ -7,7 +7,11 @@ final class RhythmSetupViewModel {
     private(set) var selectedVariationID: UUID?
     var draft: DailyRhythm
     private(set) var preview: GeneratedDailySchedule?
+    private(set) var runPreview: GeneratedDailySchedule?
     private(set) var validationMessage: String?
+    var runEndMode: RunEndMode = .stopAt
+    var stopAt = TimeOfDay(hour: 17, minute: 0)
+    var focusTarget: TimeInterval = 8 * 60 * 60
 
     private let store: RhythmLibraryStoring
     private let generator: DailyScheduleGenerator
@@ -35,6 +39,7 @@ final class RhythmSetupViewModel {
             ?? library.variations.first?.id
         self.selectedVariationID = initialID
         self.draft = library.variations.first { $0.id == initialID }?.rhythm ?? Self.exampleRhythm
+        self.stopAt = self.draft.dayEnd
         refreshPreview()
     }
 
@@ -58,9 +63,7 @@ final class RhythmSetupViewModel {
         return plannedVariationID(for: now()) == selectedVariationID
     }
 
-    var canStart: Bool {
-        preview != nil && validationMessage == nil
-    }
+    var canStart: Bool { runPreview != nil && validationMessage == nil }
 
     func select(_ id: UUID) {
         guard let variation = library.variations.first(where: { $0.id == id }) else { return }
@@ -149,9 +152,23 @@ final class RhythmSetupViewModel {
     func refreshPreview() {
         do {
             preview = try generator.generate(rhythm: draft, for: now(), calendar: calendar)
-            validationMessage = nil
         } catch {
             preview = nil
+        }
+        refreshRunPreview()
+    }
+
+    func refreshRunPreview() {
+        do {
+            runPreview = try generator.generateStartingNow(
+                rhythm: draft,
+                at: now(),
+                endCondition: selectedEndCondition,
+                calendar: calendar
+            )
+            validationMessage = nil
+        } catch {
+            runPreview = nil
             validationMessage = error.localizedDescription
         }
     }
@@ -170,6 +187,7 @@ final class RhythmSetupViewModel {
             let schedule = try generator.generateStartingNow(
                 rhythm: draft,
                 at: startedAt,
+                endCondition: selectedEndCondition,
                 calendar: calendar
             )
             let run = ActiveRhythmRun(
@@ -190,6 +208,15 @@ final class RhythmSetupViewModel {
 
     private func persist() {
         store.save(library)
+    }
+
+    private var selectedEndCondition: RunEndCondition {
+        switch runEndMode {
+        case .stopAt:
+            return .stopAt(stopAt)
+        case .focusFor:
+            return .focusFor(focusTarget)
+        }
     }
 
     private static func dateKey(for date: Date, calendar: Calendar) -> String {

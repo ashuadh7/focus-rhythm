@@ -22,6 +22,18 @@ struct ActiveRhythmRun: Codable, Equatable {
     let startedAt: Date
 }
 
+enum RunEndMode: String, CaseIterable, Identifiable {
+    case stopAt
+    case focusFor
+
+    var id: Self { self }
+}
+
+enum RunEndCondition: Equatable {
+    case stopAt(TimeOfDay)
+    case focusFor(TimeInterval)
+}
+
 struct RhythmLibrary: Codable, Equatable {
     var variations: [RhythmVariation]
     var defaultVariationID: UUID?
