@@ -15,8 +15,7 @@ private struct AppEntryView: View {
     var body: some View {
         if let activeRun {
             TimerHomeView(
-                workDuration: activeRun.rhythm.workDuration,
-                breakDuration: activeRun.rhythm.shortBreakDuration,
+                run: activeRun,
                 onEndDay: {
                     self.activeRun = nil
                 }

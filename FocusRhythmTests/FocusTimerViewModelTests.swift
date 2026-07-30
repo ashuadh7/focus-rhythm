@@ -519,4 +519,106 @@ final class FocusTimerViewModelTests: XCTestCase {
 
         XCTAssertNil(scheduler.scheduledDate)
     }
+
+    // MARK: - Finite schedule runtime
+
+    func testScheduleRunStartsInCurrentIntervalAndExposesNextTransitionAndDayEnd() {
+        let start = Date(timeIntervalSince1970: 10_000)
+        let run = makeRun(start: start)
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { start.addingTimeInterval(60) }
+        )
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, 9 * 60)
+        XCTAssertEqual(viewModel.nextTransition?.title, "Short break")
+        XCTAssertEqual(viewModel.nextTransition?.date, start.addingTimeInterval(10 * 60))
+        XCTAssertEqual(viewModel.dayEnd, start.addingTimeInterval(35 * 60))
+    }
+
+    func testScheduleAdvancesThroughShortAndLongBreaksWithoutRestart() {
+        let start = Date(timeIntervalSince1970: 20_000)
+        let viewModel = FocusTimerViewModel(
+            run: makeRun(start: start),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { start }
+        )
+
+        viewModel.tick(11 * 60)
+        XCTAssertEqual(viewModel.phase, .shortBreak)
+
+        viewModel.tick(10 * 60)
+        XCTAssertEqual(viewModel.phase, .longBreak(name: "Lunch"))
+
+        viewModel.tick(5 * 60)
+        XCTAssertEqual(viewModel.phase, .work)
+    }
+
+    func testForegroundCatchUpRecordsPassedFocusIntervalsOnce() {
+        let start = Date(timeIntervalSince1970: 30_000)
+        var currentDate = start
+        let sessionStore = InMemoryFocusSessionStore()
+        let viewModel = FocusTimerViewModel(
+            run: makeRun(start: start),
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { currentDate }
+        )
+
+        currentDate = start.addingTimeInterval(34 * 60)
+        viewModel.refreshForForeground()
+        viewModel.refreshForForeground()
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, 60)
+        XCTAssertEqual(sessionStore.allSessions.count, 2)
+        XCTAssertTrue(sessionStore.allSessions.allSatisfy(\.completed))
+    }
+
+    func testScheduleStopsAtFixedDayEnd() {
+        let start = Date(timeIntervalSince1970: 40_000)
+        let sessionStore = InMemoryFocusSessionStore()
+        let viewModel = FocusTimerViewModel(
+            run: makeRun(start: start),
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { start }
+        )
+
+        viewModel.tick(40 * 60)
+
+        XCTAssertEqual(viewModel.phase, .completedDay)
+        XCTAssertEqual(viewModel.remainingTime, 0)
+        XCTAssertNil(viewModel.nextTransition)
+        XCTAssertEqual(sessionStore.allSessions.count, 3)
+    }
+
+    private func makeRun(start: Date) -> ActiveRhythmRun {
+        let schedule = GeneratedDailySchedule(
+            rhythmName: "Test",
+            dayStart: start,
+            dayEnd: start.addingTimeInterval(35 * 60),
+            intervals: [
+                ScheduledInterval(kind: .focus, startDate: start, endDate: start.addingTimeInterval(10 * 60), isAnchored: false),
+                ScheduledInterval(kind: .shortBreak, startDate: start.addingTimeInterval(10 * 60), endDate: start.addingTimeInterval(15 * 60), isAnchored: false),
+                ScheduledInterval(kind: .focus, startDate: start.addingTimeInterval(15 * 60), endDate: start.addingTimeInterval(20 * 60), isAnchored: false),
+                ScheduledInterval(kind: .longBreak(name: "Lunch"), startDate: start.addingTimeInterval(20 * 60), endDate: start.addingTimeInterval(25 * 60), isAnchored: true),
+                ScheduledInterval(kind: .focus, startDate: start.addingTimeInterval(25 * 60), endDate: start.addingTimeInterval(35 * 60), isAnchored: false)
+            ]
+        )
+        let rhythm = DailyRhythm(
+            name: "Test",
+            dayStart: TimeOfDay(hour: 9, minute: 0),
+            dayEnd: TimeOfDay(hour: 17, minute: 0),
+            workDuration: 10 * 60,
+            shortBreakDuration: 5 * 60,
+            workSections: [],
+            longBreaks: []
+        )
+        return ActiveRhythmRun(variationID: nil, rhythm: rhythm, schedule: schedule, startedAt: start)
+    }
 }

@@ -50,6 +50,9 @@ final class FocusTimerViewModel {
     private let notificationScheduler: NotificationScheduling
     private let now: () -> Date
     private var currentWorkStartedAt: Date?
+    private let schedule: GeneratedDailySchedule?
+    private var runtimeDate: Date
+    private var currentIntervalIndex: Int?
 
     init(
         phase: FocusPhase = .idle,
@@ -67,11 +70,33 @@ final class FocusTimerViewModel {
         self.sessionStore = sessionStore
         self.notificationScheduler = notificationScheduler
         self.now = now
+        self.schedule = nil
+        self.runtimeDate = now()
         self.phase = phase
         self.workDuration = resolvedWorkDuration
         self.breakDuration = resolvedBreakDuration
         self.remainingTime = resolvedWorkDuration
         self.currentPhaseDuration = resolvedWorkDuration
+    }
+
+    init(
+        run: ActiveRhythmRun,
+        sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
+        notificationScheduler: NotificationScheduling = UNUserNotificationScheduler(),
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.settingsStore = UserDefaultsTimerSettingsStore()
+        self.sessionStore = sessionStore
+        self.notificationScheduler = notificationScheduler
+        self.now = now
+        self.schedule = run.schedule
+        self.runtimeDate = now()
+        self.phase = .idle
+        self.workDuration = run.rhythm.workDuration
+        self.breakDuration = run.rhythm.shortBreakDuration
+        self.remainingTime = 0
+        self.currentPhaseDuration = 0
+        reconcileSchedule(at: runtimeDate)
     }
 
     var phaseTitle: String {
@@ -82,6 +107,12 @@ final class FocusTimerViewModel {
             return "Focus"
         case .break:
             return "Drink water"
+        case .shortBreak:
+            return "Short break"
+        case let .longBreak(name):
+            return name
+        case .completedDay:
+            return "Day complete"
         }
     }
 
@@ -93,7 +124,30 @@ final class FocusTimerViewModel {
             return "Protect this block. Break starts automatically. Hold to take a break."
         case .break:
             return "Log water, then the next work block begins. Hold to skip."
+        case .shortBreak:
+            return "Drink some water. Focus resumes automatically."
+        case .longBreak:
+            return "Rest quietly. Your next interval will begin automatically."
+        case .completedDay:
+            return "Your planned rhythm is complete."
         }
+    }
+
+    var dayEnd: Date? { schedule?.dayEnd }
+    var isScheduleDriven: Bool { schedule != nil }
+
+    var nextTransition: (title: String, date: Date)? {
+        guard let schedule else { return nil }
+        guard phase != .completedDay else { return nil }
+        if let currentIntervalIndex {
+            let nextIndex = currentIntervalIndex + 1
+            if schedule.intervals.indices.contains(nextIndex) {
+                return (Self.title(for: schedule.intervals[nextIndex].kind), schedule.intervals[nextIndex].startDate)
+            }
+        } else if let next = schedule.intervals.first(where: { $0.startDate > runtimeDate }) {
+            return (Self.title(for: next.kind), next.startDate)
+        }
+        return ("Day complete", schedule.dayEnd)
     }
 
     var remainingTimeText: String {
@@ -113,7 +167,8 @@ final class FocusTimerViewModel {
     }
 
     var isLowTimeWarningVisible: Bool {
-        phase.isRunning && !isSelectingBreakDuration && !addTimeUsed && remainingTime > 0 && remainingTime <= lowTimeThreshold
+        !isScheduleDriven && phase.isRunning && !isSelectingBreakDuration && !addTimeUsed && remainingTime > 0
+            && remainingTime <= lowTimeThreshold
     }
 
     var isAddTimeAvailable: Bool {
@@ -129,6 +184,10 @@ final class FocusTimerViewModel {
     /// use `completeHoldToInterrupt` for taking a break or skipping one.
     func start() {
         guard phase == .idle else { return }
+        if schedule != nil {
+            reconcileSchedule(at: now())
+            return
+        }
         phase = .work
         remainingTime = workDuration
         currentPhaseDuration = workDuration
@@ -142,6 +201,11 @@ final class FocusTimerViewModel {
     /// Loops over multiple phase transitions when `interval` spans more than one phase, so
     /// it also serves as the wall-clock catch-up path via `refreshForForeground()`.
     func tick(_ interval: TimeInterval = 1) {
+        if schedule != nil {
+            runtimeDate = runtimeDate.addingTimeInterval(interval)
+            reconcileSchedule(at: runtimeDate)
+            return
+        }
         guard phase.isRunning, !isSelectingBreakDuration else { return }
         var remainingInterval = interval
 
@@ -160,7 +224,7 @@ final class FocusTimerViewModel {
                 resetAddTime()
             case .break:
                 transitionFromBreakToWork()
-            default:
+            case .idle, .shortBreak, .longBreak, .completedDay:
                 break
             }
         }
@@ -172,6 +236,10 @@ final class FocusTimerViewModel {
     /// transitions that should have happened while the app was backgrounded/suspended.
     /// Call on scene-phase becoming active.
     func refreshForForeground() {
+        if schedule != nil {
+            reconcileSchedule(at: now())
+            return
+        }
         guard phase.isRunning, !isSelectingBreakDuration, let phaseEndTime else { return }
         let secondsPastEnd = now().timeIntervalSince(phaseEndTime)
         guard secondsPastEnd >= 0 else {
@@ -201,7 +269,7 @@ final class FocusTimerViewModel {
             notificationScheduler.cancelPendingPhaseTransition()
         case .break:
             transitionFromBreakToWork()
-        case .idle:
+        case .idle, .shortBreak, .longBreak, .completedDay:
             break
         }
     }
@@ -258,7 +326,7 @@ final class FocusTimerViewModel {
     }
 
     func requestEndCycle() {
-        guard phase != .idle else { return }
+        guard phase != .idle, phase != .completedDay else { return }
         isEndingCycle = true
     }
 
@@ -325,8 +393,86 @@ final class FocusTimerViewModel {
             return ("Break time", "Your focus block is done. Time to drink water.")
         case .break:
             return ("Back to work", "Break's over. Time to start your next focus block.")
-        case .idle:
+        case .shortBreak:
+            return ("Back to focus", "Your short break is complete.")
+        case let .longBreak(name):
+            return ("\(name) complete", "Your planned rhythm is continuing.")
+        case .idle, .completedDay:
             return ("", "")
+        }
+    }
+
+    private func reconcileSchedule(at date: Date) {
+        guard let schedule else { return }
+        runtimeDate = date
+
+        for interval in schedule.intervals
+        where interval.kind == .focus && interval.endDate <= date {
+            recordScheduledWorkSession(interval)
+        }
+
+        if date >= schedule.dayEnd {
+            currentIntervalIndex = nil
+            phase = .completedDay
+            remainingTime = 0
+            currentPhaseDuration = 0
+            syncPhaseEndTime()
+            return
+        }
+
+        guard let index = schedule.intervals.firstIndex(where: {
+            $0.startDate <= date && date < $0.endDate
+        }) else {
+            currentIntervalIndex = nil
+            phase = .idle
+            remainingTime = max(0, (schedule.intervals.first { $0.startDate > date }?.startDate ?? schedule.dayEnd).timeIntervalSince(date))
+            currentPhaseDuration = remainingTime
+            syncPhaseEndTime()
+            return
+        }
+
+        let interval = schedule.intervals[index]
+        currentIntervalIndex = index
+        phase = Self.phase(for: interval.kind)
+        remainingTime = max(0, interval.endDate.timeIntervalSince(date))
+        currentPhaseDuration = interval.duration
+        phaseEndTime = interval.endDate
+        resetAddTime()
+
+        let content = upcomingTransitionNotificationContent
+        notificationScheduler.schedulePhaseTransition(
+            at: interval.endDate,
+            title: content.title,
+            body: content.body
+        )
+    }
+
+    private func recordScheduledWorkSession(_ interval: ScheduledInterval) {
+        let alreadyRecorded = sessionStore.sessions(on: interval.endDate).contains {
+            $0.completed && $0.startedAt == interval.startDate && $0.endedAt == interval.endDate
+        }
+        guard !alreadyRecorded else { return }
+        sessionStore.addSession(
+            startedAt: interval.startDate,
+            endedAt: interval.endDate,
+            duration: interval.duration,
+            completed: true
+        )
+    }
+
+    private static func phase(for kind: ScheduledIntervalKind) -> FocusPhase {
+        switch kind {
+        case .focus: return .work
+        case .shortBreak: return .shortBreak
+        case let .longBreak(name): return .longBreak(name: name)
+        }
+    }
+
+    private static func title(for kind: ScheduledIntervalKind) -> String {
+        switch kind {
+        case .focus: return "Focus"
+        case .shortBreak: return "Short break"
+        case let .longBreak(name): return name
         }
     }
 

@@ -128,67 +128,181 @@ struct DailyScheduleGenerator {
         at now: Date,
         calendar: Calendar
     ) throws -> GeneratedDailySchedule {
+        try generateStartingNow(
+            rhythm: rhythm,
+            at: now,
+            endCondition: .stopAt(rhythm.dayEnd),
+            calendar: calendar
+        )
+    }
+
+    func generateStartingNow(
+        rhythm: DailyRhythm,
+        at now: Date,
+        endCondition: RunEndCondition,
+        calendar: Calendar
+    ) throws -> GeneratedDailySchedule {
         try validate(rhythm)
+        let sectionDurations = try relativeSectionDurations(rhythm, on: now, calendar: calendar)
+        let breakTemplates = try relativeLongBreaks(rhythm, on: now, calendar: calendar)
 
-        let configuredStart = try resolve(rhythm.dayStart, field: "Day start", on: now, calendar: calendar)
-        let dayEnd = try resolve(rhythm.dayEnd, field: "Day end", on: now, calendar: calendar)
-        guard now < dayEnd else {
-            throw DailyRhythmValidationError.dayStartMustPrecedeEnd
+        switch endCondition {
+        case let .stopAt(time):
+            let end = try resolve(time, field: "Stop time", on: now, calendar: calendar)
+            guard end > now else { throw DailyRhythmValidationError.dayStartMustPrecedeEnd }
+            return rollingSchedule(
+                rhythm: rhythm,
+                startingAt: now,
+                stoppingAt: end,
+                sectionDurations: sectionDurations,
+                breakTemplates: breakTemplates
+            )
+        case let .focusFor(target):
+            guard target > 0 else {
+                throw DailyRhythmValidationError.nonPositiveDuration(field: "Focus target")
+            }
+            return focusTargetSchedule(
+                rhythm: rhythm,
+                startingAt: now,
+                focusTarget: target,
+                sectionDurations: sectionDurations,
+                breakTemplates: breakTemplates
+            )
         }
+    }
 
-        let effectiveStart = max(now, configuredStart)
+    private func rollingSchedule(
+        rhythm: DailyRhythm,
+        startingAt start: Date,
+        stoppingAt end: Date,
+        sectionDurations: [TimeInterval],
+        breakTemplates: [(name: String, duration: TimeInterval)]
+    ) -> GeneratedDailySchedule {
         var intervals: [ScheduledInterval] = []
+        var cursor = start
+        var sectionIndex = 0
 
-        for (index, section) in rhythm.workSections.enumerated() {
-            let start = try resolve(
-                section.startTime,
-                field: "Work section \(index + 1) start",
-                on: now,
-                calendar: calendar
-            )
-            let end = try resolve(
-                section.endTime,
-                field: "Work section \(index + 1) end",
-                on: now,
-                calendar: calendar
-            )
-            guard end > effectiveStart else { continue }
-            intervals.append(contentsOf: fill(
-                sectionFrom: max(start, effectiveStart),
-                to: end,
-                rhythm: rhythm
-            ))
+        while cursor < end {
+            let sectionDuration = sectionDurations[sectionIndex % sectionDurations.count]
+            let sectionEnd = min(cursor.addingTimeInterval(sectionDuration), end)
+            intervals.append(contentsOf: fill(sectionFrom: cursor, to: sectionEnd, rhythm: rhythm))
+            cursor = sectionEnd
+            guard cursor < end else { break }
+
+            if !breakTemplates.isEmpty {
+                let item = breakTemplates[sectionIndex % breakTemplates.count]
+                let breakEnd = min(cursor.addingTimeInterval(item.duration), end)
+                intervals.append(ScheduledInterval(
+                    kind: .longBreak(name: item.name),
+                    startDate: cursor,
+                    endDate: breakEnd,
+                    isAnchored: false
+                ))
+                cursor = breakEnd
+            }
+            sectionIndex += 1
         }
 
-        for (index, longBreak) in rhythm.longBreaks.enumerated() {
-            let start = try resolve(
-                longBreak.startTime,
-                field: "Long break \(index + 1) start",
-                on: now,
-                calendar: calendar
-            )
-            let end = try resolve(
-                longBreak.endTime,
-                field: "Long break \(index + 1) end",
-                on: now,
-                calendar: calendar
-            )
-            guard start >= effectiveStart else { continue }
-            intervals.append(ScheduledInterval(
-                kind: .longBreak(name: longBreak.name),
-                startDate: start,
-                endDate: end,
-                isAnchored: true
-            ))
-        }
-
-        intervals.sort { $0.startDate == $1.startDate ? $0.endDate < $1.endDate : $0.startDate < $1.startDate }
         return GeneratedDailySchedule(
             rhythmName: rhythm.name,
-            dayStart: effectiveStart,
-            dayEnd: dayEnd,
+            dayStart: start,
+            dayEnd: end,
             intervals: intervals
         )
+    }
+
+    private func focusTargetSchedule(
+        rhythm: DailyRhythm,
+        startingAt start: Date,
+        focusTarget: TimeInterval,
+        sectionDurations: [TimeInterval],
+        breakTemplates: [(name: String, duration: TimeInterval)]
+    ) -> GeneratedDailySchedule {
+        var intervals: [ScheduledInterval] = []
+        var remainingFocus = focusTarget
+        var cursor = start
+        var sectionIndex = 0
+
+        while remainingFocus > 0 {
+            let sectionDuration = sectionDurations[sectionIndex % sectionDurations.count]
+            let sectionEnd = cursor.addingTimeInterval(sectionDuration)
+
+            while cursor < sectionEnd, remainingFocus > 0 {
+                let focusDuration = min(
+                    rhythm.workDuration,
+                    remainingFocus,
+                    sectionEnd.timeIntervalSince(cursor)
+                )
+                guard focusDuration > 0 else { break }
+                let focusEnd = cursor.addingTimeInterval(focusDuration)
+                intervals.append(ScheduledInterval(
+                    kind: .focus,
+                    startDate: cursor,
+                    endDate: focusEnd,
+                    isAnchored: false
+                ))
+                remainingFocus -= focusDuration
+                cursor = focusEnd
+
+                guard remainingFocus > 0,
+                      cursor.addingTimeInterval(rhythm.shortBreakDuration + min(rhythm.workDuration, remainingFocus)) <= sectionEnd
+                else { break }
+                let breakEnd = cursor.addingTimeInterval(rhythm.shortBreakDuration)
+                intervals.append(ScheduledInterval(
+                    kind: .shortBreak,
+                    startDate: cursor,
+                    endDate: breakEnd,
+                    isAnchored: false
+                ))
+                cursor = breakEnd
+            }
+
+            guard remainingFocus > 0 else { break }
+            cursor = sectionEnd
+            if !breakTemplates.isEmpty {
+                let item = breakTemplates[sectionIndex % breakTemplates.count]
+                let breakEnd = cursor.addingTimeInterval(item.duration)
+                intervals.append(ScheduledInterval(
+                    kind: .longBreak(name: item.name),
+                    startDate: cursor,
+                    endDate: breakEnd,
+                    isAnchored: false
+                ))
+                cursor = breakEnd
+            }
+            sectionIndex += 1
+        }
+
+        return GeneratedDailySchedule(
+            rhythmName: rhythm.name,
+            dayStart: start,
+            dayEnd: cursor,
+            intervals: intervals
+        )
+    }
+
+    private func relativeSectionDurations(
+        _ rhythm: DailyRhythm,
+        on date: Date,
+        calendar: Calendar
+    ) throws -> [TimeInterval] {
+        try rhythm.workSections.enumerated().map { index, section in
+            let start = try resolve(section.startTime, field: "Work section \(index + 1) start", on: date, calendar: calendar)
+            let end = try resolve(section.endTime, field: "Work section \(index + 1) end", on: date, calendar: calendar)
+            return end.timeIntervalSince(start)
+        }
+    }
+
+    private func relativeLongBreaks(
+        _ rhythm: DailyRhythm,
+        on date: Date,
+        calendar: Calendar
+    ) throws -> [(name: String, duration: TimeInterval)] {
+        try rhythm.longBreaks.enumerated().map { index, item in
+            let start = try resolve(item.startTime, field: "Long break \(index + 1) start", on: date, calendar: calendar)
+            let end = try resolve(item.endTime, field: "Long break \(index + 1) end", on: date, calendar: calendar)
+            return (item.name, end.timeIntervalSince(start))
+        }
     }
 
     func validate(_ rhythm: DailyRhythm) throws {

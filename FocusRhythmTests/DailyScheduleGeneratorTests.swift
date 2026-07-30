@@ -141,6 +141,53 @@ final class DailyScheduleGeneratorTests: XCTestCase {
         XCTAssertEqual(components.minute, 0)
     }
 
+    func testStartNowStopAtShiftsCadenceAndHonorsChosenEnd() throws {
+        let calendar = makeCalendar()
+        let now = makeDate(year: 2026, month: 7, day: 27, hour: 10, calendar: calendar)
+        let rhythm = makeRhythm(
+            sections: [section(9, 0, 13, 0)],
+            longBreaks: [
+                AnchoredLongBreak(name: "Reset", startTime: time(13, 0), endTime: time(14, 0))
+            ]
+        )
+
+        let schedule = try generator.generateStartingNow(
+            rhythm: rhythm,
+            at: now,
+            endCondition: .stopAt(time(16, 0)),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(schedule.dayStart, now)
+        XCTAssertEqual(clockTime(schedule.dayEnd, calendar: calendar), time(16, 0))
+        XCTAssertEqual(schedule.intervals.first?.startDate, now)
+        XCTAssertEqual(schedule.longBreakDetails.first?.startDate, now.addingTimeInterval(4 * 60 * 60))
+        XCTAssertEqual(schedule.longBreakDetails.first?.duration, 60 * 60)
+    }
+
+    func testStartNowFocusForUsesActualFocusAndCalculatesFinish() throws {
+        let calendar = makeCalendar()
+        let now = makeDate(year: 2026, month: 7, day: 27, hour: 9, calendar: calendar)
+        let rhythm = makeRhythm(
+            sections: [section(9, 0, 13, 0)],
+            longBreaks: [
+                AnchoredLongBreak(name: "Reset", startTime: time(13, 0), endTime: time(14, 0))
+            ]
+        )
+
+        let schedule = try generator.generateStartingNow(
+            rhythm: rhythm,
+            at: now,
+            endCondition: .focusFor(400 * 60),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(schedule.expectedFocusTime, 400 * 60)
+        XCTAssertEqual(schedule.longBreakDetails.map(\.name), ["Reset"])
+        XCTAssertEqual(schedule.dayEnd, now.addingTimeInterval(8 * 60 * 60 + 50 * 60))
+        XCTAssertTrue(schedule.intervals.allSatisfy { $0.startDate >= now && $0.endDate <= schedule.dayEnd })
+    }
+
     func testNonexistentDayBoundaryTimeReturnsUsefulError() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Toronto")!

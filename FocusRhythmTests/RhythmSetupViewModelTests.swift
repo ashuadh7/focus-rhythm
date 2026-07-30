@@ -113,6 +113,27 @@ final class RhythmSetupViewModelTests: XCTestCase {
         XCTAssertEqual(context.calendar.component(.hour, from: run!.schedule.dayEnd), 17)
     }
 
+    func testStartNowCanUseAFocusTargetInsteadOfAStopTime() {
+        let context = makeContext(hour: 9)
+        let variation = RhythmVariation(rhythm: makeRhythm(name: "Target"))
+        let store = MemoryRhythmLibraryStore(RhythmLibrary(
+            variations: [variation],
+            defaultVariationID: nil,
+            plannedSelections: [],
+            activeRun: nil
+        ))
+        let viewModel = makeViewModel(store: store, context: context)
+        viewModel.runEndMode = .focusFor
+        viewModel.focusTarget = 8 * 60 * 60
+        viewModel.refreshRunPreview()
+
+        let run = viewModel.startNow()
+
+        XCTAssertEqual(run?.schedule.dayStart, context.now)
+        XCTAssertEqual(run?.schedule.expectedFocusTime, 8 * 60 * 60)
+        XCTAssertEqual(viewModel.runPreview?.dayEnd, run?.schedule.dayEnd)
+    }
+
     func testStandardCascadeStartsAtDayStartAndRepeatsFourHoursWithOneHourBreaks() {
         let context = makeContext()
         let store = MemoryRhythmLibraryStore(.empty)
