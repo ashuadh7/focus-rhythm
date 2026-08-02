@@ -167,15 +167,6 @@
 			path = DailySummary;
 			sourceTree = "<group>";
 		};
-		0F70000D0000000000000001 /* RhythmSetup */ = {
-			isa = PBXGroup;
-			children = (
-				0F20001A0000000000000001 /* RhythmSetupViewModel.swift */,
-				0F20001B0000000000000001 /* RhythmSetupView.swift */,
-			);
-			path = RhythmSetup;
-			sourceTree = "<group>";
-		};
 		0F7000080000000000000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -231,6 +222,15 @@
 			children = (
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		0F70000D0000000000000001 /* RhythmSetup */ = {
+			isa = PBXGroup;
+			children = (
+				0F20001A0000000000000001 /* RhythmSetupViewModel.swift */,
+				0F20001B0000000000000001 /* RhythmSetupView.swift */,
+			);
+			path = RhythmSetup;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -485,6 +485,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 4W4F2H58NJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Focus Rhythm";
@@ -509,6 +510,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 4W4F2H58NJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Focus Rhythm";
@@ -533,6 +535,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4W4F2H58NJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1;
@@ -550,6 +553,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4W4F2H58NJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1;
