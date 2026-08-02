@@ -271,7 +271,9 @@ final class FocusTimerViewModel {
         switch phase {
         case .work:
             isSelectingBreakDuration = true
-            notificationScheduler.cancelPendingPhaseTransition()
+            if activeRun == nil {
+                notificationScheduler.cancelTransitionNotifications()
+            }
         case .break:
             if activeRun?.quickBreakEndsAt != nil {
                 skipScheduledBreak()
@@ -394,7 +396,7 @@ final class FocusTimerViewModel {
     private func syncPhaseEndTime() {
         guard phase.isRunning, !isSelectingBreakDuration else {
             phaseEndTime = nil
-            notificationScheduler.cancelPendingPhaseTransition()
+            notificationScheduler.cancelTransitionNotifications()
             return
         }
 
@@ -402,7 +404,14 @@ final class FocusTimerViewModel {
         phaseEndTime = endTime
 
         let content = upcomingTransitionNotificationContent
-        notificationScheduler.schedulePhaseTransition(at: endTime, title: content.title, body: content.body)
+        notificationScheduler.reconcileTransitionNotifications([
+            TransitionNotification(
+                identifier: Self.adHocTransitionIdentifier,
+                date: endTime,
+                title: content.title,
+                body: content.body
+            )
+        ])
     }
 
     private var upcomingTransitionNotificationContent: (title: String, body: String) {
@@ -435,12 +444,7 @@ final class FocusTimerViewModel {
                 remainingTime = quickBreakEndsAt.timeIntervalSince(date)
                 currentPhaseDuration = remainingTime
                 phaseEndTime = quickBreakEndsAt
-                let content = upcomingTransitionNotificationContent
-                notificationScheduler.schedulePhaseTransition(
-                    at: quickBreakEndsAt,
-                    title: content.title,
-                    body: content.body
-                )
+                reconcileDailyRunNotifications(at: date)
                 return
             }
             activeRun?.quickBreakEndsAt = nil
@@ -457,7 +461,8 @@ final class FocusTimerViewModel {
             phase = .completedDay
             remainingTime = 0
             currentPhaseDuration = 0
-            syncPhaseEndTime()
+            phaseEndTime = nil
+            notificationScheduler.cancelTransitionNotifications()
             updateActiveRunStatus(.completed)
             return
         }
@@ -469,7 +474,8 @@ final class FocusTimerViewModel {
             phase = .idle
             remainingTime = max(0, (schedule.intervals.first { $0.startDate > date }?.startDate ?? schedule.dayEnd).timeIntervalSince(date))
             currentPhaseDuration = remainingTime
-            syncPhaseEndTime()
+            phaseEndTime = nil
+            reconcileDailyRunNotifications(at: date)
             persistActiveRunIfMateriallyChanged(
                 previousIndex: previousIndex,
                 previousPhase: previousPhase,
@@ -487,12 +493,7 @@ final class FocusTimerViewModel {
         phaseEndTime = interval.endDate
         resetAddTime()
 
-        let content = upcomingTransitionNotificationContent
-        notificationScheduler.schedulePhaseTransition(
-            at: interval.endDate,
-            title: content.title,
-            body: content.body
-        )
+        reconcileDailyRunNotifications(at: date)
         persistActiveRunIfMateriallyChanged(
             previousIndex: previousIndex,
             previousPhase: previousPhase,
@@ -611,6 +612,64 @@ final class FocusTimerViewModel {
         case .focus: return "Focus"
         case .shortBreak: return "Short break"
         case let .longBreak(name): return name
+        }
+    }
+
+    private static let adHocTransitionIdentifier =
+        "\(UNUserNotificationScheduler.transitionIdentifierPrefix)ad-hoc"
+
+    private func reconcileDailyRunNotifications(at date: Date) {
+        guard let activeRun else {
+            notificationScheduler.cancelTransitionNotifications()
+            return
+        }
+
+        let runKey = String(Int(activeRun.startedAt.timeIntervalSince1970 * 1_000))
+        let revisionKey = "\(runKey).r\(activeRun.scheduleRevision)"
+        var notifications = activeRun.schedule.intervals.compactMap { interval -> TransitionNotification? in
+            guard interval.startDate > date else { return nil }
+            let content = Self.notificationContent(for: interval.kind)
+            return TransitionNotification(
+                identifier: "\(UNUserNotificationScheduler.transitionIdentifierPrefix)\(revisionKey).interval.\(interval.id.uuidString)",
+                date: interval.startDate,
+                title: content.title,
+                body: content.body
+            )
+        }
+
+        if let quickBreakEndsAt = activeRun.quickBreakEndsAt, quickBreakEndsAt > date {
+            notifications.append(
+                TransitionNotification(
+                    identifier: "\(UNUserNotificationScheduler.transitionIdentifierPrefix)\(revisionKey).quick-break-end",
+                    date: quickBreakEndsAt,
+                    title: "Back to focus",
+                    body: "Your short pause is complete."
+                )
+            )
+        }
+
+        if activeRun.schedule.dayEnd > date {
+            notifications.append(
+                TransitionNotification(
+                    identifier: "\(UNUserNotificationScheduler.transitionIdentifierPrefix)\(revisionKey).day-end",
+                    date: activeRun.schedule.dayEnd,
+                    title: "Day complete",
+                    body: "Your planned focus rhythm is complete."
+                )
+            )
+        }
+
+        notificationScheduler.reconcileTransitionNotifications(notifications)
+    }
+
+    private static func notificationContent(for kind: ScheduledIntervalKind) -> (title: String, body: String) {
+        switch kind {
+        case .focus:
+            return ("Focus resumes", "Your next focus interval begins now.")
+        case .shortBreak:
+            return ("Short break", "A short pause begins now.")
+        case let .longBreak(name):
+            return (name, "Your planned long break begins now.")
         }
     }
 
