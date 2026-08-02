@@ -234,13 +234,14 @@ final class RhythmSetupViewModel {
             ))
             cursor = focusEnd
             if index < names.count - 1 {
-                let breakEnd = cursor.addingTimeInterval(10)
+                let isLongBreak = index == 2
+                let breakEnd = cursor.addingTimeInterval(isLongBreak ? 20 : 10)
                 intervals.append(ScheduledInterval(
-                    kind: .shortBreak,
+                    kind: isLongBreak ? .longBreak(name: "Lunch") : .shortBreak,
                     startDate: cursor,
                     endDate: breakEnd,
-                    isAnchored: false,
-                    label: "Break after \(name)"
+                    isAnchored: isLongBreak,
+                    label: isLongBreak ? "Lunch" : "Break after \(name)"
                 ))
                 cursor = breakEnd
             }
@@ -267,7 +268,11 @@ final class RhythmSetupViewModel {
             variationID: nil,
             rhythm: rhythm,
             schedule: schedule,
-            startedAt: startedAt
+            startedAt: startedAt,
+            longBreakWarningTiming: LongBreakWarningTiming(
+                wrapUpLeadTime: 10,
+                finalReturnLeadTime: 5
+            )
         )
         library.activeRun = run
         persist()
