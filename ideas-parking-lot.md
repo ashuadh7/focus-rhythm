@@ -11,7 +11,6 @@ Rules:
 
 ## Entries
 
-- **Plan a future rhythm with an alarm.** Let someone shape a clock-anchored future day, save it for a date, and receive an alarm when it is time to begin. Deferred because the current runtime should have one unambiguous rule: an active run starts now. Future planning introduces missed-start, rescheduling, alarm-permission, and fixed-appointment semantics that should be designed separately once the start-now rhythm is dependable.
 - **Task organizer / to-do integration.** Strong impulse to expand focus-rhythm into a full task management tool. Defer until at least v0.4 and only revisit if the core focus/break/habit loop is genuinely working and sticking. The risk is bloating the app and losing the tight, single-purpose feel that makes it valuable.
 - **Scatter-brain circuit breakers.** Personalized "snag routines" for when focus collapses mid-session — short physical/sensory jolts the user has pre-registered as effective for them (e.g. spicy food, ice water, 30s exercise, cold shower, walk outside). App would surface a tailored suggestion instead of a generic break. Defer until the base focus loop is proven; this needs a profile/preferences system and risks turning into a coaching app. Worth revisiting once there's enough usage data to know what kinds of snags actually happen.
 - **Audio Visual recommender.** Suggest accompanying podcast, video essays, news, etc. that you can listen to during breaks like food time, eating time, cleaning time, etc. The length of the activity and the other medium should match so that you don't continue listening/watching beyond the length of original task (either a single thing itself is too long or it is too short and another video is opened and it cascades.)
@@ -39,3 +38,4 @@ Rules:
         ---
 
         Key insight to keep in mind: you're not after a long narrative. You want a punchy tagline that reframes scattered tasks as chapters of one story. Today's was *"Grounding myself in the problem space"* — that's the template.
+- another idea... let me set the routine for the next day... you get an alarm like notification forcing me to start... but the cold state gets to decide when i start to work...
