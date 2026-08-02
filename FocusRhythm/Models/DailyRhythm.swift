@@ -83,10 +83,38 @@ enum ScheduledIntervalKind: Codable, Equatable {
 }
 
 struct ScheduledInterval: Codable, Equatable {
+    let id: UUID
     let kind: ScheduledIntervalKind
     let startDate: Date
     let endDate: Date
     let isAnchored: Bool
+
+    init(
+        id: UUID = UUID(),
+        kind: ScheduledIntervalKind,
+        startDate: Date,
+        endDate: Date,
+        isAnchored: Bool
+    ) {
+        self.id = id
+        self.kind = kind
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAnchored = isAnchored
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, startDate, endDate, isAnchored
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        kind = try container.decode(ScheduledIntervalKind.self, forKey: .kind)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        endDate = try container.decode(Date.self, forKey: .endDate)
+        isAnchored = try container.decode(Bool.self, forKey: .isAnchored)
+    }
 
     var duration: TimeInterval {
         endDate.timeIntervalSince(startDate)
@@ -94,6 +122,13 @@ struct ScheduledInterval: Codable, Equatable {
 
     var isFlexible: Bool {
         !isAnchored
+    }
+
+    static func == (lhs: ScheduledInterval, rhs: ScheduledInterval) -> Bool {
+        lhs.kind == rhs.kind
+            && lhs.startDate == rhs.startDate
+            && lhs.endDate == rhs.endDate
+            && lhs.isAnchored == rhs.isAnchored
     }
 }
 

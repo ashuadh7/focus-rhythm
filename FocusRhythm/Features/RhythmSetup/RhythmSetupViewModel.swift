@@ -14,17 +14,20 @@ final class RhythmSetupViewModel {
     var focusTarget: TimeInterval = 8 * 60 * 60
 
     private let store: RhythmLibraryStoring
+    private let activeRunStore: ActiveRunStoring
     private let generator: DailyScheduleGenerator
     private let calendar: Calendar
     private let now: () -> Date
 
     init(
         store: RhythmLibraryStoring = UserDefaultsRhythmLibraryStore(),
+        activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
         generator: DailyScheduleGenerator = DailyScheduleGenerator(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.store = store
+        self.activeRunStore = activeRunStore
         self.generator = generator
         self.calendar = calendar
         self.now = now
@@ -198,6 +201,7 @@ final class RhythmSetupViewModel {
             )
             library.activeRun = run
             persist()
+            activeRunStore.save(run)
             validationMessage = nil
             return run
         } catch {

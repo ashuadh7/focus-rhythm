@@ -579,6 +579,81 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertTrue(sessionStore.allSessions.allSatisfy(\.completed))
     }
 
+    func testRelaunchCatchUpPersistsRecordedIntervalsAndAvoidsDuplicateSessions() {
+        let start = Date(timeIntervalSince1970: 35_000)
+        let activeRunStore = InMemoryActiveRunStore()
+        activeRunStore.run = makeRun(start: start)
+        let sessionStore = InMemoryFocusSessionStore()
+
+        _ = FocusTimerViewModel(
+            run: activeRunStore.run!,
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { start.addingTimeInterval(26 * 60) }
+        )
+        _ = FocusTimerViewModel(
+            run: activeRunStore.run!,
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { start.addingTimeInterval(34 * 60) }
+        )
+
+        XCTAssertEqual(sessionStore.allSessions.count, 2)
+        XCTAssertEqual(activeRunStore.run?.recordedIntervalIDs.count, 2)
+    }
+
+    func testScheduledLongPressBreakReturnsToInterruptedWork() {
+        let start = Date(timeIntervalSince1970: 37_000)
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { start }
+        )
+
+        viewModel.completeHoldToInterrupt()
+        XCTAssertTrue(viewModel.isSelectingBreakDuration)
+        viewModel.confirmBreak(duration: 3 * 60)
+
+        XCTAssertEqual(viewModel.phase, .break)
+        XCTAssertEqual(viewModel.remainingTime, 3 * 60)
+        XCTAssertEqual(activeRunStore.run?.scheduleRevision, 2)
+
+        viewModel.tick(3 * 60)
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, 10 * 60)
+    }
+
+    func testScheduledShortBreakCanBeSkippedWithHold() {
+        let start = Date(timeIntervalSince1970: 38_000)
+        var currentDate = start
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+        viewModel.tick(11 * 60)
+        currentDate = start.addingTimeInterval(11 * 60)
+
+        viewModel.completeHoldToInterrupt()
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.remainingTime, 5 * 60)
+        XCTAssertEqual(activeRunStore.run?.scheduleRevision, 2)
+    }
+
     func testScheduleStopsAtFixedDayEnd() {
         let start = Date(timeIntervalSince1970: 40_000)
         let sessionStore = InMemoryFocusSessionStore()
@@ -595,6 +670,25 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.remainingTime, 0)
         XCTAssertNil(viewModel.nextTransition)
         XCTAssertEqual(sessionStore.allSessions.count, 3)
+    }
+
+    func testScheduleCompletionIsPersisted() {
+        let start = Date(timeIntervalSince1970: 45_000)
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { start }
+        )
+
+        viewModel.tick(40 * 60)
+
+        XCTAssertEqual(activeRunStore.run?.status, .completed)
+        XCTAssertEqual(activeRunStore.run?.recordedIntervalIDs.count, 3)
     }
 
     private func makeRun(start: Date) -> ActiveRhythmRun {

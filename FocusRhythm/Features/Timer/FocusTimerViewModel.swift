@@ -50,7 +50,9 @@ final class FocusTimerViewModel {
     private let notificationScheduler: NotificationScheduling
     private let now: () -> Date
     private var currentWorkStartedAt: Date?
-    private let schedule: GeneratedDailySchedule?
+    private var activeRun: ActiveRhythmRun?
+    private let activeRunStore: ActiveRunStoring?
+    private var schedule: GeneratedDailySchedule? { activeRun?.schedule }
     private var runtimeDate: Date
     private var currentIntervalIndex: Int?
 
@@ -70,7 +72,8 @@ final class FocusTimerViewModel {
         self.sessionStore = sessionStore
         self.notificationScheduler = notificationScheduler
         self.now = now
-        self.schedule = nil
+        self.activeRun = nil
+        self.activeRunStore = nil
         self.runtimeDate = now()
         self.phase = phase
         self.workDuration = resolvedWorkDuration
@@ -83,13 +86,15 @@ final class FocusTimerViewModel {
         run: ActiveRhythmRun,
         sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
         notificationScheduler: NotificationScheduling = UNUserNotificationScheduler(),
+        activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
         now: @escaping () -> Date = Date.init
     ) {
         self.settingsStore = UserDefaultsTimerSettingsStore()
         self.sessionStore = sessionStore
         self.notificationScheduler = notificationScheduler
         self.now = now
-        self.schedule = run.schedule
+        self.activeRun = run
+        self.activeRunStore = activeRunStore
         self.runtimeDate = now()
         self.phase = .idle
         self.workDuration = run.rhythm.workDuration
@@ -268,8 +273,14 @@ final class FocusTimerViewModel {
             isSelectingBreakDuration = true
             notificationScheduler.cancelPendingPhaseTransition()
         case .break:
-            transitionFromBreakToWork()
-        case .idle, .shortBreak, .longBreak, .completedDay:
+            if activeRun?.quickBreakEndsAt != nil {
+                skipScheduledBreak()
+            } else {
+                transitionFromBreakToWork()
+            }
+        case .shortBreak:
+            skipScheduledBreak()
+        case .idle, .longBreak, .completedDay:
             break
         }
     }
@@ -285,6 +296,10 @@ final class FocusTimerViewModel {
     func confirmBreak(duration: TimeInterval) {
         guard isSelectingBreakDuration else { return }
         let cappedDuration = min(duration, Self.midWorkBreakCap)
+        if activeRun != nil {
+            beginScheduledQuickBreak(duration: cappedDuration)
+            return
+        }
         pendingWorkRemainder = remainingTime
         phase = .break
         remainingTime = cappedDuration
@@ -357,6 +372,9 @@ final class FocusTimerViewModel {
         isSelectingBreakDuration = false
         resetAddTime()
         syncPhaseEndTime()
+        if activeRun != nil {
+            updateActiveRunStatus(.ended)
+        }
         return true
     }
 
@@ -404,7 +422,30 @@ final class FocusTimerViewModel {
 
     private func reconcileSchedule(at date: Date) {
         guard let schedule else { return }
+        let previousIndex = currentIntervalIndex
+        let previousPhase = phase
+        let previousRecordedCount = activeRun?.recordedIntervalIDs.count
+        let previousStatus = activeRun?.status
         runtimeDate = date
+
+        if let quickBreakEndsAt = activeRun?.quickBreakEndsAt {
+            if date < quickBreakEndsAt {
+                currentIntervalIndex = nil
+                phase = .break
+                remainingTime = quickBreakEndsAt.timeIntervalSince(date)
+                currentPhaseDuration = remainingTime
+                phaseEndTime = quickBreakEndsAt
+                let content = upcomingTransitionNotificationContent
+                notificationScheduler.schedulePhaseTransition(
+                    at: quickBreakEndsAt,
+                    title: content.title,
+                    body: content.body
+                )
+                return
+            }
+            activeRun?.quickBreakEndsAt = nil
+            persistActiveRun()
+        }
 
         for interval in schedule.intervals
         where interval.kind == .focus && interval.endDate <= date {
@@ -417,6 +458,7 @@ final class FocusTimerViewModel {
             remainingTime = 0
             currentPhaseDuration = 0
             syncPhaseEndTime()
+            updateActiveRunStatus(.completed)
             return
         }
 
@@ -428,6 +470,12 @@ final class FocusTimerViewModel {
             remainingTime = max(0, (schedule.intervals.first { $0.startDate > date }?.startDate ?? schedule.dayEnd).timeIntervalSince(date))
             currentPhaseDuration = remainingTime
             syncPhaseEndTime()
+            persistActiveRunIfMateriallyChanged(
+                previousIndex: previousIndex,
+                previousPhase: previousPhase,
+                previousRecordedCount: previousRecordedCount,
+                previousStatus: previousStatus
+            )
             return
         }
 
@@ -445,19 +493,109 @@ final class FocusTimerViewModel {
             title: content.title,
             body: content.body
         )
+        persistActiveRunIfMateriallyChanged(
+            previousIndex: previousIndex,
+            previousPhase: previousPhase,
+            previousRecordedCount: previousRecordedCount,
+            previousStatus: previousStatus
+        )
     }
 
     private func recordScheduledWorkSession(_ interval: ScheduledInterval) {
+        if activeRun?.recordedIntervalIDs.contains(interval.id) == true { return }
         let alreadyRecorded = sessionStore.sessions(on: interval.endDate).contains {
             $0.completed && $0.startedAt == interval.startDate && $0.endedAt == interval.endDate
         }
-        guard !alreadyRecorded else { return }
-        sessionStore.addSession(
-            startedAt: interval.startDate,
-            endedAt: interval.endDate,
-            duration: interval.duration,
-            completed: true
+        if !alreadyRecorded {
+            sessionStore.addSession(
+                startedAt: interval.startDate,
+                endedAt: interval.endDate,
+                duration: interval.duration,
+                completed: true
+            )
+        }
+        activeRun?.recordedIntervalIDs.insert(interval.id)
+    }
+
+    private func updateActiveRunStatus(_ status: ActiveRhythmRun.Status) {
+        guard activeRun?.status != status else { return }
+        activeRun?.status = status
+        if let activeRun {
+            activeRunStore?.save(activeRun)
+        }
+    }
+
+    private func beginScheduledQuickBreak(duration: TimeInterval) {
+        let startedAt = now()
+        shiftRemainingSchedule(by: duration, from: startedAt)
+        activeRun?.scheduleRevision += 1
+        activeRun?.quickBreakEndsAt = startedAt.addingTimeInterval(duration)
+        isSelectingBreakDuration = false
+        resetAddTime()
+        persistActiveRun()
+        reconcileSchedule(at: startedAt)
+    }
+
+    private func shiftRemainingSchedule(by duration: TimeInterval, from cutoff: Date) {
+        guard duration != 0, let schedule else { return }
+        let shiftedIntervals = schedule.intervals.map { interval in
+            if interval.endDate <= cutoff {
+                return interval
+            }
+            if interval.startDate < cutoff {
+                return ScheduledInterval(
+                    id: interval.id,
+                    kind: interval.kind,
+                    startDate: interval.startDate,
+                    endDate: interval.endDate.addingTimeInterval(duration),
+                    isAnchored: interval.isAnchored
+                )
+            }
+            return ScheduledInterval(
+                id: interval.id,
+                kind: interval.kind,
+                startDate: interval.startDate.addingTimeInterval(duration),
+                endDate: interval.endDate.addingTimeInterval(duration),
+                isAnchored: interval.isAnchored
+            )
+        }
+        activeRun?.schedule = GeneratedDailySchedule(
+            rhythmName: schedule.rhythmName,
+            dayStart: schedule.dayStart,
+            dayEnd: schedule.dayEnd.addingTimeInterval(duration),
+            intervals: shiftedIntervals
         )
+    }
+
+    private func persistActiveRun() {
+        if let activeRun {
+            activeRunStore?.save(activeRun)
+        }
+    }
+
+    private func skipScheduledBreak() {
+        let skippedAt = now()
+        let remaining = activeRun?.quickBreakEndsAt?.timeIntervalSince(skippedAt) ?? remainingTime
+        activeRun?.quickBreakEndsAt = nil
+        shiftRemainingSchedule(by: -max(0, remaining), from: skippedAt)
+        activeRun?.scheduleRevision += 1
+        persistActiveRun()
+        reconcileSchedule(at: skippedAt)
+    }
+
+    private func persistActiveRunIfMateriallyChanged(
+        previousIndex: Int?,
+        previousPhase: FocusPhase,
+        previousRecordedCount: Int?,
+        previousStatus: ActiveRhythmRun.Status?
+    ) {
+        guard previousIndex != currentIntervalIndex
+                || previousPhase != phase
+                || previousRecordedCount != activeRun?.recordedIntervalIDs.count
+                || previousStatus != activeRun?.status,
+              let activeRun
+        else { return }
+        activeRunStore?.save(activeRun)
     }
 
     private static func phase(for kind: ScheduledIntervalKind) -> FocusPhase {
