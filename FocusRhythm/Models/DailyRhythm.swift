@@ -88,23 +88,26 @@ struct ScheduledInterval: Codable, Equatable {
     let startDate: Date
     let endDate: Date
     let isAnchored: Bool
+    let label: String?
 
     init(
         id: UUID = UUID(),
         kind: ScheduledIntervalKind,
         startDate: Date,
         endDate: Date,
-        isAnchored: Bool
+        isAnchored: Bool,
+        label: String? = nil
     ) {
         self.id = id
         self.kind = kind
         self.startDate = startDate
         self.endDate = endDate
         self.isAnchored = isAnchored
+        self.label = label
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, startDate, endDate, isAnchored
+        case id, kind, startDate, endDate, isAnchored, label
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +117,7 @@ struct ScheduledInterval: Codable, Equatable {
         startDate = try container.decode(Date.self, forKey: .startDate)
         endDate = try container.decode(Date.self, forKey: .endDate)
         isAnchored = try container.decode(Bool.self, forKey: .isAnchored)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
     }
 
     var duration: TimeInterval {
@@ -129,6 +133,7 @@ struct ScheduledInterval: Codable, Equatable {
             && lhs.startDate == rhs.startDate
             && lhs.endDate == rhs.endDate
             && lhs.isAnchored == rhs.isAnchored
+            && lhs.label == rhs.label
     }
 }
 

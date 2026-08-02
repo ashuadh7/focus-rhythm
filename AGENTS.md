@@ -31,6 +31,8 @@ For each GitHub issue assigned in a new chat:
    `development` before beginning development.
 2. Implement the issue and run appropriate automated verification.
 3. Ask the user to manually review the completed behavior.
+   Use `docs/manual-testing.md` when the feature touches timer or schedule behavior,
+   and update its reusable scenarios when a shorter or clearer manual check is needed.
 4. After manual approval, commit and push the changes and open a pull request targeting
    `development` that includes a verification checklist.
 5. Wait for the user to double-check and explicitly approve merging.

@@ -117,6 +117,9 @@ xcodebuild \
   build
 ```
 
+Manual product checks use the reusable scenarios and workflow in
+[docs/manual-testing.md](docs/manual-testing.md).
+
 ## Status
 
 ✅ **v0.1 continuous focus loop complete** — the app has configurable and automatic

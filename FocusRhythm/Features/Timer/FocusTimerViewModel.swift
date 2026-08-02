@@ -140,6 +140,10 @@ final class FocusTimerViewModel {
 
     var dayEnd: Date? { schedule?.dayEnd }
     var isScheduleDriven: Bool { schedule != nil }
+    var currentBlockName: String? {
+        guard let schedule, let currentIntervalIndex else { return nil }
+        return schedule.intervals[currentIntervalIndex].label
+    }
 
     var nextTransition: (title: String, date: Date)? {
         guard let schedule else { return nil }
@@ -165,6 +169,10 @@ final class FocusTimerViewModel {
     /// Default/maximum break length to offer in the mid-work interrupt picker.
     var midWorkBreakPickerDefault: TimeInterval {
         min(breakDuration, Self.midWorkBreakCap)
+    }
+
+    var usesSecondScaleBreakPicker: Bool {
+        midWorkBreakPickerDefault < 60
     }
 
     private var lowTimeThreshold: TimeInterval {
@@ -549,7 +557,8 @@ final class FocusTimerViewModel {
                     kind: interval.kind,
                     startDate: interval.startDate,
                     endDate: interval.endDate.addingTimeInterval(duration),
-                    isAnchored: interval.isAnchored
+                    isAnchored: interval.isAnchored,
+                    label: interval.label
                 )
             }
             return ScheduledInterval(
@@ -557,7 +566,8 @@ final class FocusTimerViewModel {
                 kind: interval.kind,
                 startDate: interval.startDate.addingTimeInterval(duration),
                 endDate: interval.endDate.addingTimeInterval(duration),
-                isAnchored: interval.isAnchored
+                isAnchored: interval.isAnchored,
+                label: interval.label
             )
         }
         activeRun?.schedule = GeneratedDailySchedule(
