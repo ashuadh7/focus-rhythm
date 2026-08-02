@@ -2,6 +2,32 @@ import XCTest
 @testable import FocusRhythm
 
 final class RhythmSetupViewModelTests: XCTestCase {
+    func testManualTestScenarioCreatesFiveNamedTwentySecondFocusBlocks() {
+        let context = makeContext()
+        let store = MemoryRhythmLibraryStore(.empty)
+        let activeRunStore = InMemoryActiveRunStore()
+        let viewModel = RhythmSetupViewModel(
+            store: store,
+            activeRunStore: activeRunStore,
+            calendar: context.calendar,
+            now: { context.now }
+        )
+
+        let run = viewModel.startManualTest()
+
+        let focusIntervals = run.schedule.intervals.filter { $0.kind == .focus }
+        XCTAssertEqual(focusIntervals.map(\.label), [
+            "cs 349 assignment", "Flow-sync", "Throughline", "Grading", "Scholarship"
+        ])
+        XCTAssertEqual(focusIntervals.map(\.duration), Array(repeating: 20, count: 5))
+        XCTAssertEqual(
+            run.schedule.intervals.filter { $0.kind == .shortBreak }.map(\.duration),
+            Array(repeating: 10, count: 4)
+        )
+        XCTAssertEqual(run.schedule.dayEnd.timeIntervalSince(run.startedAt), 140)
+        XCTAssertEqual(activeRunStore.run, run)
+    }
+
     func testTodaysPlanIsOfferedBeforeDefault() {
         let context = makeContext()
         let planned = RhythmVariation(rhythm: makeRhythm(name: "Planned"))

@@ -78,6 +78,12 @@ struct TimerHomeView: View {
             Spacer()
 
             VStack(spacing: 12) {
+                if let blockName = viewModel.currentBlockName {
+                    Text(blockName)
+                        .font(.title3.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                }
+
                 Text(viewModel.phaseTitle)
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -236,18 +242,25 @@ struct TimerHomeView: View {
     private var breakDurationPicker: some View {
         NavigationStack {
             Form {
-                Stepper(
-                    "Break length: \(Int(pickerDuration / 60)) min",
-                    value: Binding(
-                        get: { Int(pickerDuration / 60) },
-                        set: { pickerDuration = TimeInterval($0 * 60) }
-                    ),
-                    in: 1...Int(FocusTimerViewModel.midWorkBreakCap / 60),
-                    step: 1
-                )
-                Text("Mid-work breaks are capped at \(Int(FocusTimerViewModel.midWorkBreakCap / 60)) minutes.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                if viewModel.usesSecondScaleBreakPicker {
+                    LabeledContent("Break length", value: "\(Int(pickerDuration)) sec")
+                    Text("This short duration comes from the active manual-test rhythm.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Stepper(
+                        "Break length: \(Int(pickerDuration / 60)) min",
+                        value: Binding(
+                            get: { Int(pickerDuration / 60) },
+                            set: { pickerDuration = TimeInterval($0 * 60) }
+                        ),
+                        in: 1...Int(FocusTimerViewModel.midWorkBreakCap / 60),
+                        step: 1
+                    )
+                    Text("Mid-work breaks are capped at \(Int(FocusTimerViewModel.midWorkBreakCap / 60)) minutes.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
             .navigationTitle("Take a break")
             .navigationBarTitleDisplayMode(.inline)

@@ -22,6 +22,7 @@ struct RhythmSetupView: View {
                     preview
                     actions
                 }
+                manualTestAction
             }
             .navigationTitle("Choose today’s rhythm")
             .toolbar {
@@ -140,6 +141,19 @@ struct RhythmSetupView: View {
             .disabled(!viewModel.canStart)
 
             Text("Starts immediately. The selected rhythm controls the cadence; your end condition controls when the run finishes.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var manualTestAction: some View {
+        Section("Manual testing") {
+            Button("Start test") {
+                let run = viewModel.startManualTest()
+                startedRun = run
+                onStart(run)
+            }
+            Text("Runs five named 20-second focus blocks with 10-second breaks.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

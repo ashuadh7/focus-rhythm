@@ -531,6 +531,7 @@ final class FocusTimerViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(viewModel.currentBlockName, "Test task")
         XCTAssertEqual(viewModel.remainingTime, 9 * 60)
         XCTAssertEqual(viewModel.nextTransition?.title, "Short break")
         XCTAssertEqual(viewModel.nextTransition?.date, start.addingTimeInterval(10 * 60))
@@ -603,6 +604,40 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertTrue(revisedIdentifiers.allSatisfy { $0.contains(".r2.") })
         XCTAssertTrue(originalIdentifiers.isDisjoint(with: revisedIdentifiers))
         XCTAssertTrue(scheduler.notifications.contains { $0.identifier.hasSuffix("quick-break-end") })
+        XCTAssertEqual(activeRunStore.run?.schedule.intervals.first?.label, "Test task")
+    }
+
+    func testManualTestRunUsesSecondScaleBreakPicker() {
+        let start = Date(timeIntervalSince1970: 11_750)
+        let schedule = GeneratedDailySchedule(
+            rhythmName: "Manual test",
+            dayStart: start,
+            dayEnd: start.addingTimeInterval(50),
+            intervals: [
+                ScheduledInterval(kind: .focus, startDate: start, endDate: start.addingTimeInterval(20), isAnchored: false, label: "Task"),
+                ScheduledInterval(kind: .shortBreak, startDate: start.addingTimeInterval(20), endDate: start.addingTimeInterval(30), isAnchored: false),
+                ScheduledInterval(kind: .focus, startDate: start.addingTimeInterval(30), endDate: start.addingTimeInterval(50), isAnchored: false, label: "Next")
+            ]
+        )
+        let rhythm = DailyRhythm(
+            name: "Manual test",
+            dayStart: TimeOfDay(hour: 9, minute: 0),
+            dayEnd: TimeOfDay(hour: 9, minute: 1),
+            workDuration: 20,
+            shortBreakDuration: 10,
+            workSections: [],
+            longBreaks: []
+        )
+        let run = ActiveRhythmRun(variationID: nil, rhythm: rhythm, schedule: schedule, startedAt: start)
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { start }
+        )
+
+        XCTAssertTrue(viewModel.usesSecondScaleBreakPicker)
+        XCTAssertEqual(viewModel.midWorkBreakPickerDefault, 10)
     }
 
     func testScheduleAdvancesThroughShortAndLongBreaksWithoutRestart() {
@@ -765,7 +800,7 @@ final class FocusTimerViewModelTests: XCTestCase {
             dayStart: start,
             dayEnd: start.addingTimeInterval(35 * 60),
             intervals: [
-                ScheduledInterval(kind: .focus, startDate: start, endDate: start.addingTimeInterval(10 * 60), isAnchored: false),
+                ScheduledInterval(kind: .focus, startDate: start, endDate: start.addingTimeInterval(10 * 60), isAnchored: false, label: "Test task"),
                 ScheduledInterval(kind: .shortBreak, startDate: start.addingTimeInterval(10 * 60), endDate: start.addingTimeInterval(15 * 60), isAnchored: false),
                 ScheduledInterval(kind: .focus, startDate: start.addingTimeInterval(15 * 60), endDate: start.addingTimeInterval(20 * 60), isAnchored: false),
                 ScheduledInterval(kind: .longBreak(name: "Lunch"), startDate: start.addingTimeInterval(20 * 60), endDate: start.addingTimeInterval(25 * 60), isAnchored: true),

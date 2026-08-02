@@ -210,6 +210,71 @@ final class RhythmSetupViewModel {
         }
     }
 
+    /// Starts the short, deterministic rhythm documented in docs/manual-testing.md.
+    @discardableResult
+    func startManualTest() -> ActiveRhythmRun {
+        let startedAt = now()
+        let names = [
+            "cs 349 assignment",
+            "Flow-sync",
+            "Throughline",
+            "Grading",
+            "Scholarship"
+        ]
+        var cursor = startedAt
+        var intervals: [ScheduledInterval] = []
+        for (index, name) in names.enumerated() {
+            let focusEnd = cursor.addingTimeInterval(20)
+            intervals.append(ScheduledInterval(
+                kind: .focus,
+                startDate: cursor,
+                endDate: focusEnd,
+                isAnchored: false,
+                label: name
+            ))
+            cursor = focusEnd
+            if index < names.count - 1 {
+                let breakEnd = cursor.addingTimeInterval(10)
+                intervals.append(ScheduledInterval(
+                    kind: .shortBreak,
+                    startDate: cursor,
+                    endDate: breakEnd,
+                    isAnchored: false,
+                    label: "Break after \(name)"
+                ))
+                cursor = breakEnd
+            }
+        }
+
+        let components = calendar.dateComponents([.hour, .minute], from: startedAt)
+        let rhythm = DailyRhythm(
+            name: "Manual test: named soft landings",
+            dayStart: TimeOfDay(hour: components.hour ?? 0, minute: components.minute ?? 0),
+            dayEnd: TimeOfDay(hour: components.hour ?? 0, minute: components.minute ?? 0),
+            workDuration: 20,
+            shortBreakDuration: 10,
+            workSections: [],
+            longBreaks: [],
+            finalPartialFocusBehavior: .omit
+        )
+        let schedule = GeneratedDailySchedule(
+            rhythmName: rhythm.name,
+            dayStart: startedAt,
+            dayEnd: cursor,
+            intervals: intervals
+        )
+        let run = ActiveRhythmRun(
+            variationID: nil,
+            rhythm: rhythm,
+            schedule: schedule,
+            startedAt: startedAt
+        )
+        library.activeRun = run
+        persist()
+        activeRunStore.save(run)
+        return run
+    }
+
     private func persist() {
         store.save(library)
     }
