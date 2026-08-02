@@ -37,7 +37,10 @@ For each GitHub issue assigned in a new chat:
    `development` that includes a verification checklist.
 5. Wait for the user to double-check and explicitly approve merging.
 6. Merge the pull request only after that approval.
-7. Delete the merged local and remote issue branches.
+7. After the pull request merges into `development`, manually close the linked GitHub
+   issue as completed. GitHub closing keywords do not close issues when a pull request
+   merges into a non-default branch, and `main` remains the default branch.
+8. Delete the merged local and remote issue branches.
 
 Do not skip the manual-review or double-verification gates. Do not merge merely because
 automated checks pass.
