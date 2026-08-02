@@ -89,6 +89,7 @@ struct ScheduledInterval: Codable, Equatable {
     let endDate: Date
     let isAnchored: Bool
     let label: String?
+    let excludedDuration: TimeInterval
 
     init(
         id: UUID = UUID(),
@@ -96,7 +97,8 @@ struct ScheduledInterval: Codable, Equatable {
         startDate: Date,
         endDate: Date,
         isAnchored: Bool,
-        label: String? = nil
+        label: String? = nil,
+        excludedDuration: TimeInterval = 0
     ) {
         self.id = id
         self.kind = kind
@@ -104,10 +106,11 @@ struct ScheduledInterval: Codable, Equatable {
         self.endDate = endDate
         self.isAnchored = isAnchored
         self.label = label
+        self.excludedDuration = excludedDuration
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, startDate, endDate, isAnchored, label
+        case id, kind, startDate, endDate, isAnchored, label, excludedDuration
     }
 
     init(from decoder: Decoder) throws {
@@ -118,10 +121,11 @@ struct ScheduledInterval: Codable, Equatable {
         endDate = try container.decode(Date.self, forKey: .endDate)
         isAnchored = try container.decode(Bool.self, forKey: .isAnchored)
         label = try container.decodeIfPresent(String.self, forKey: .label)
+        excludedDuration = try container.decodeIfPresent(TimeInterval.self, forKey: .excludedDuration) ?? 0
     }
 
     var duration: TimeInterval {
-        endDate.timeIntervalSince(startDate)
+        max(0, endDate.timeIntervalSince(startDate) - excludedDuration)
     }
 
     var isFlexible: Bool {
@@ -134,6 +138,7 @@ struct ScheduledInterval: Codable, Equatable {
             && lhs.endDate == rhs.endDate
             && lhs.isAnchored == rhs.isAnchored
             && lhs.label == rhs.label
+            && lhs.excludedDuration == rhs.excludedDuration
     }
 }
 
@@ -172,5 +177,93 @@ struct GeneratedDailySchedule: Codable, Equatable {
                 endDate: interval.endDate
             )
         }
+    }
+}
+
+extension GeneratedDailySchedule {
+    struct ReflowResult {
+        let schedule: GeneratedDailySchedule
+        let appliedAdjustment: TimeInterval
+    }
+
+    /// Moves the flexible remainder of the current anchored section while keeping its
+    /// closing long break (or day end) fixed. Positive adjustments consume time from
+    /// the section's final focus interval; negative adjustments close the gap early.
+    func reflowingFlexibleRemainder(
+        from cutoff: Date,
+        by requestedAdjustment: TimeInterval
+    ) -> ReflowResult {
+        guard requestedAdjustment != 0,
+              let currentIndex = intervals.firstIndex(where: { $0.startDate <= cutoff && cutoff < $0.endDate }),
+              intervals[currentIndex].isFlexible
+        else { return ReflowResult(schedule: self, appliedAdjustment: 0) }
+
+        let sectionEndIndex = intervals[currentIndex...].firstIndex(where: { $0.isAnchored }) ?? intervals.endIndex
+        let boundary = sectionEndIndex < intervals.endIndex ? intervals[sectionEndIndex].startDate : dayEnd
+        let sectionIndices = Array(currentIndex..<sectionEndIndex)
+        guard !sectionIndices.isEmpty else { return ReflowResult(schedule: self, appliedAdjustment: 0) }
+
+        var remainingDurations = sectionIndices.map { index in
+            index == currentIndex ? intervals[index].endDate.timeIntervalSince(cutoff) : intervals[index].duration
+        }
+        let capacity = max(0, boundary.timeIntervalSince(cutoff))
+        let originalTotal = remainingDurations.reduce(0, +)
+        var appliedAdjustment = requestedAdjustment
+
+        if requestedAdjustment > 0 {
+            let overflow = max(0, originalTotal + requestedAdjustment - capacity)
+            if overflow > 0 {
+                let lastFocusPosition = sectionIndices.indices.reversed().first {
+                    $0 > 0 && intervals[sectionIndices[$0]].kind == .focus
+                }
+                let absorbable = lastFocusPosition.map { remainingDurations[$0] } ?? 0
+                appliedAdjustment -= max(0, overflow - absorbable)
+            }
+        } else {
+            appliedAdjustment = max(requestedAdjustment, -remainingDurations[0])
+        }
+        remainingDurations[0] = max(0, remainingDurations[0] + appliedAdjustment)
+
+        var overflow = max(0, remainingDurations.reduce(0, +) - capacity)
+        if overflow > 0,
+           let lastFocusPosition = sectionIndices.indices.reversed().first(where: {
+               $0 > 0 && intervals[sectionIndices[$0]].kind == .focus
+           }) {
+            let reduction = min(overflow, remainingDurations[lastFocusPosition])
+            remainingDurations[lastFocusPosition] -= reduction
+            overflow -= reduction
+        }
+        guard overflow == 0 else { return ReflowResult(schedule: self, appliedAdjustment: 0) }
+
+        var rebuilt = Array(intervals[..<currentIndex])
+        var cursor = cutoff
+        for (position, index) in sectionIndices.enumerated() {
+            let source = intervals[index]
+            let duration = remainingDurations[position]
+            guard duration > 0 else { continue }
+            let start = index == currentIndex ? source.startDate : cursor
+            let end = cursor.addingTimeInterval(duration)
+            rebuilt.append(ScheduledInterval(
+                id: source.id,
+                kind: source.kind,
+                startDate: start,
+                endDate: end,
+                isAnchored: false,
+                label: source.label,
+                excludedDuration: source.excludedDuration
+            ))
+            cursor = end
+        }
+        rebuilt.append(contentsOf: intervals[sectionEndIndex...])
+
+        return ReflowResult(
+            schedule: GeneratedDailySchedule(
+                rhythmName: rhythmName,
+                dayStart: dayStart,
+                dayEnd: dayEnd,
+                intervals: rebuilt
+            ),
+            appliedAdjustment: appliedAdjustment
+        )
     }
 }

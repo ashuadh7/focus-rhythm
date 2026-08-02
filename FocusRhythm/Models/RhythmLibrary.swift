@@ -28,6 +28,7 @@ struct ActiveRhythmRun: Codable, Equatable {
     let startedAt: Date
     var scheduleRevision: Int
     var recordedIntervalIDs: Set<UUID>
+    var extendedIntervalIDs: Set<UUID>
     var status: Status
     var quickBreakEndsAt: Date?
 
@@ -38,6 +39,7 @@ struct ActiveRhythmRun: Codable, Equatable {
         startedAt: Date,
         scheduleRevision: Int = 1,
         recordedIntervalIDs: Set<UUID> = [],
+        extendedIntervalIDs: Set<UUID> = [],
         status: Status = .active,
         quickBreakEndsAt: Date? = nil
     ) {
@@ -47,12 +49,13 @@ struct ActiveRhythmRun: Codable, Equatable {
         self.startedAt = startedAt
         self.scheduleRevision = scheduleRevision
         self.recordedIntervalIDs = recordedIntervalIDs
+        self.extendedIntervalIDs = extendedIntervalIDs
         self.status = status
         self.quickBreakEndsAt = quickBreakEndsAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, status
+        case variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, extendedIntervalIDs, status
         case quickBreakEndsAt
     }
 
@@ -64,6 +67,7 @@ struct ActiveRhythmRun: Codable, Equatable {
         startedAt = try container.decode(Date.self, forKey: .startedAt)
         scheduleRevision = try container.decodeIfPresent(Int.self, forKey: .scheduleRevision) ?? 1
         recordedIntervalIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .recordedIntervalIDs) ?? []
+        extendedIntervalIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .extendedIntervalIDs) ?? []
         status = try container.decodeIfPresent(Status.self, forKey: .status) ?? .active
         quickBreakEndsAt = try container.decodeIfPresent(Date.self, forKey: .quickBreakEndsAt)
     }

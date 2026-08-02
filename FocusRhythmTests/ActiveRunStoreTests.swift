@@ -18,6 +18,7 @@ final class ActiveRunStoreTests: XCTestCase {
         var run = makeRun(start: Date(timeIntervalSince1970: 1_000))
         run.scheduleRevision = 3
         run.recordedIntervalIDs.insert(run.schedule.intervals[0].id)
+        run.extendedIntervalIDs.insert(run.schedule.intervals[0].id)
 
         store.save(run)
 

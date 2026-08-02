@@ -753,6 +753,114 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.phase, .work)
         XCTAssertEqual(viewModel.remainingTime, 5 * 60)
         XCTAssertEqual(activeRunStore.run?.scheduleRevision, 2)
+        XCTAssertEqual(activeRunStore.run?.schedule.dayEnd, start.addingTimeInterval(35 * 60))
+        XCTAssertEqual(
+            activeRunStore.run?.schedule.intervals.first(where: { $0.kind == .longBreak(name: "Lunch") })?.startDate,
+            start.addingTimeInterval(20 * 60)
+        )
+    }
+
+    func testInsertedBreakKeepsLongBreakAndDayEndFixedAndTrimsFinalFocus() {
+        let start = Date(timeIntervalSince1970: 39_000)
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { start }
+        )
+
+        viewModel.completeHoldToInterrupt()
+        viewModel.confirmBreak(duration: 3 * 60)
+
+        let revised = activeRunStore.run!.schedule
+        XCTAssertEqual(revised.dayEnd, start.addingTimeInterval(35 * 60))
+        XCTAssertEqual(
+            revised.intervals.first(where: { $0.kind == .longBreak(name: "Lunch") })?.startDate,
+            start.addingTimeInterval(20 * 60)
+        )
+        XCTAssertEqual(revised.intervals[1].duration, 5 * 60, "the full short break is preserved")
+        XCTAssertEqual(revised.intervals[2].duration, 2 * 60, "overflow trims the final focus before lunch")
+        XCTAssertEqual(revised.expectedFocusTime, run.schedule.expectedFocusTime - 3 * 60)
+        XCTAssertNotNil(viewModel.scheduleChangeMessage)
+    }
+
+    func testExtensionIsBoundedWhenThereIsNoLaterFocusToAbsorbIt() {
+        let start = Date(timeIntervalSince1970: 39_500)
+        let schedule = GeneratedDailySchedule(
+            rhythmName: "Tight",
+            dayStart: start,
+            dayEnd: start.addingTimeInterval(10 * 60),
+            intervals: [
+                ScheduledInterval(kind: .focus, startDate: start, endDate: start.addingTimeInterval(10 * 60), isAnchored: false)
+            ]
+        )
+
+        let result = schedule.reflowingFlexibleRemainder(
+            from: start.addingTimeInterval(8 * 60),
+            by: 2 * 60
+        )
+
+        XCTAssertEqual(result.appliedAdjustment, 0)
+        XCTAssertEqual(result.schedule, schedule)
+    }
+
+    func testScheduledBlockCanOnlyBeExtendedOnceAcrossTicks() {
+        let start = Date(timeIntervalSince1970: 39_750)
+        var currentDate = start
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+
+        currentDate = start.addingTimeInterval(8 * 60)
+        viewModel.refreshForForeground()
+        XCTAssertTrue(viewModel.isAddTimeAvailable)
+        viewModel.addTime()
+        let revisionAfterExtension = activeRunStore.run?.scheduleRevision
+
+        currentDate = start.addingTimeInterval(9 * 60)
+        viewModel.refreshForForeground()
+
+        XCTAssertFalse(viewModel.isAddTimeAvailable)
+        viewModel.addTime()
+        XCTAssertEqual(activeRunStore.run?.scheduleRevision, revisionAfterExtension)
+        XCTAssertEqual(activeRunStore.run?.extendedIntervalIDs.count, 1)
+    }
+
+    func testScheduledExtensionAllowanceRemainsUsedAfterRelaunch() {
+        let start = Date(timeIntervalSince1970: 39_800)
+        var currentDate = start.addingTimeInterval(8 * 60)
+        let activeRunStore = InMemoryActiveRunStore()
+        activeRunStore.run = makeRun(start: start)
+        let first = FocusTimerViewModel(
+            run: activeRunStore.run!,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+        first.addTime()
+
+        currentDate = start.addingTimeInterval(9 * 60)
+        let restored = FocusTimerViewModel(
+            run: activeRunStore.run!,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+
+        XCTAssertFalse(restored.isAddTimeAvailable)
     }
 
     func testScheduleStopsAtFixedDayEnd() {

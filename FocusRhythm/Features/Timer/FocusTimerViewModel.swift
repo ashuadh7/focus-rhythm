@@ -33,6 +33,7 @@ final class FocusTimerViewModel {
     private(set) var currentPhaseDuration: TimeInterval
     private(set) var addTimeUsed = false
     private(set) var bonusAdded: TimeInterval = 0
+    private(set) var scheduleChangeMessage: String?
 
     /// True while the break-length picker is open after a work interrupt. The countdown
     /// freezes during selection.
@@ -180,12 +181,15 @@ final class FocusTimerViewModel {
     }
 
     var isLowTimeWarningVisible: Bool {
-        !isScheduleDriven && phase.isRunning && !isSelectingBreakDuration && !addTimeUsed && remainingTime > 0
+        phase.isRunning && !isSelectingBreakDuration && !addTimeUsed && remainingTime > 0
             && remainingTime <= lowTimeThreshold
     }
 
     var isAddTimeAvailable: Bool {
-        isLowTimeWarningVisible
+        guard isLowTimeWarningVisible else { return false }
+        guard let schedule, let currentIntervalIndex else { return true }
+        let interval = schedule.intervals[currentIntervalIndex]
+        return interval.isFlexible && activeRun?.extendedIntervalIDs.contains(interval.id) != true
     }
 
     var isBonusLowTimeWarningVisible: Bool {
@@ -268,10 +272,21 @@ final class FocusTimerViewModel {
     func addTime() {
         guard isAddTimeAvailable else { return }
         let bonus = currentPhaseDuration * Self.lowTimeFraction
-        remainingTime += bonus
-        bonusAdded = bonus
+        if activeRun != nil {
+            guard let intervalID = currentIntervalIndex.flatMap({ schedule?.intervals[$0].id }) else { return }
+            let applied = reflowRemainingSchedule(by: bonus, from: now())
+            guard applied > 0 else { return }
+            activeRun?.extendedIntervalIDs.insert(intervalID)
+            bonusAdded = applied
+            activeRun?.scheduleRevision += 1
+            persistActiveRun()
+            reconcileSchedule(at: now())
+        } else {
+            remainingTime += bonus
+            bonusAdded = bonus
+            syncPhaseEndTime()
+        }
         addTimeUsed = true
-        syncPhaseEndTime()
     }
 
     /// Called when the long-press to interrupt/skip completes (5s during work, 3s during break).
@@ -499,7 +514,9 @@ final class FocusTimerViewModel {
         remainingTime = max(0, interval.endDate.timeIntervalSince(date))
         currentPhaseDuration = interval.duration
         phaseEndTime = interval.endDate
-        resetAddTime()
+        let wasExtended = activeRun?.extendedIntervalIDs.contains(interval.id) == true
+        addTimeUsed = wasExtended
+        if !wasExtended { bonusAdded = 0 }
 
         reconcileDailyRunNotifications(at: date)
         persistActiveRunIfMateriallyChanged(
@@ -536,46 +553,71 @@ final class FocusTimerViewModel {
 
     private func beginScheduledQuickBreak(duration: TimeInterval) {
         let startedAt = now()
-        shiftRemainingSchedule(by: duration, from: startedAt)
+        let appliedDuration = reflowRemainingSchedule(
+            by: duration,
+            from: startedAt,
+            excludingAdjustmentFromFocus: true
+        )
+        guard appliedDuration > 0 else {
+            isSelectingBreakDuration = false
+            reconcileSchedule(at: startedAt)
+            return
+        }
         activeRun?.scheduleRevision += 1
-        activeRun?.quickBreakEndsAt = startedAt.addingTimeInterval(duration)
+        activeRun?.quickBreakEndsAt = startedAt.addingTimeInterval(appliedDuration)
         isSelectingBreakDuration = false
         resetAddTime()
         persistActiveRun()
         reconcileSchedule(at: startedAt)
     }
 
-    private func shiftRemainingSchedule(by duration: TimeInterval, from cutoff: Date) {
-        guard duration != 0, let schedule else { return }
-        let shiftedIntervals = schedule.intervals.map { interval in
-            if interval.endDate <= cutoff {
-                return interval
-            }
-            if interval.startDate < cutoff {
-                return ScheduledInterval(
-                    id: interval.id,
-                    kind: interval.kind,
-                    startDate: interval.startDate,
-                    endDate: interval.endDate.addingTimeInterval(duration),
-                    isAnchored: interval.isAnchored,
-                    label: interval.label
-                )
-            }
-            return ScheduledInterval(
-                id: interval.id,
-                kind: interval.kind,
-                startDate: interval.startDate.addingTimeInterval(duration),
-                endDate: interval.endDate.addingTimeInterval(duration),
-                isAnchored: interval.isAnchored,
-                label: interval.label
+    @discardableResult
+    private func reflowRemainingSchedule(
+        by duration: TimeInterval,
+        from cutoff: Date,
+        excludingAdjustmentFromFocus: Bool = false
+    ) -> TimeInterval {
+        guard let schedule else { return 0 }
+        let oldFocusTime = schedule.expectedFocusTime
+        let oldSessionCount = schedule.focusSessionCount
+        let result = schedule.reflowingFlexibleRemainder(from: cutoff, by: duration)
+        guard result.appliedAdjustment != 0 else { return 0 }
+        var revisedSchedule = result.schedule
+        if excludingAdjustmentFromFocus,
+           let index = revisedSchedule.intervals.firstIndex(where: {
+               $0.kind == .focus && $0.startDate <= cutoff && cutoff < $0.endDate
+           }) {
+            let source = revisedSchedule.intervals[index]
+            var intervals = revisedSchedule.intervals
+            intervals[index] = ScheduledInterval(
+                id: source.id,
+                kind: source.kind,
+                startDate: source.startDate,
+                endDate: source.endDate,
+                isAnchored: source.isAnchored,
+                label: source.label,
+                excludedDuration: source.excludedDuration + result.appliedAdjustment
+            )
+            revisedSchedule = GeneratedDailySchedule(
+                rhythmName: revisedSchedule.rhythmName,
+                dayStart: revisedSchedule.dayStart,
+                dayEnd: revisedSchedule.dayEnd,
+                intervals: intervals
             )
         }
-        activeRun?.schedule = GeneratedDailySchedule(
-            rhythmName: schedule.rhythmName,
-            dayStart: schedule.dayStart,
-            dayEnd: schedule.dayEnd.addingTimeInterval(duration),
-            intervals: shiftedIntervals
-        )
+        activeRun?.schedule = revisedSchedule
+
+        let focusDelta = revisedSchedule.expectedFocusTime - oldFocusTime
+        let sessionDelta = revisedSchedule.focusSessionCount - oldSessionCount
+        let end = schedule.dayEnd.formatted(date: .omitted, time: .shortened)
+        if focusDelta < 0 {
+            let minutes = Int(abs(focusDelta) / 60)
+            let sessionNote = sessionDelta < 0 ? " and removes the final focus interval" : " from the final focus interval"
+            scheduleChangeMessage = "This change removes \(minutes) minutes\(sessionNote). The day still ends at \(end)."
+        } else {
+            scheduleChangeMessage = "The remaining plan moved earlier. The day still ends at \(end)."
+        }
+        return result.appliedAdjustment
     }
 
     private func persistActiveRun() {
@@ -586,9 +628,14 @@ final class FocusTimerViewModel {
 
     private func skipScheduledBreak() {
         let skippedAt = now()
+        let isSkippingQuickBreak = activeRun?.quickBreakEndsAt != nil
         let remaining = activeRun?.quickBreakEndsAt?.timeIntervalSince(skippedAt) ?? remainingTime
         activeRun?.quickBreakEndsAt = nil
-        shiftRemainingSchedule(by: -max(0, remaining), from: skippedAt)
+        _ = reflowRemainingSchedule(
+            by: -max(0, remaining),
+            from: skippedAt,
+            excludingAdjustmentFromFocus: isSkippingQuickBreak
+        )
         activeRun?.scheduleRevision += 1
         persistActiveRun()
         reconcileSchedule(at: skippedAt)

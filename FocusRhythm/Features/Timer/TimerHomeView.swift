@@ -107,6 +107,14 @@ struct TimerHomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let message = viewModel.scheduleChangeMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
                 if viewModel.isBonusLowTimeWarningVisible {
                     Text("Bonus time almost up")
                         .font(.footnote.weight(.medium))
