@@ -16,24 +16,22 @@ final class InMemoryTimerSettingsStore: TimerSettingsStoring {
 
 final class InMemoryNotificationScheduler: NotificationScheduling {
     private(set) var authorizationRequested = false
-    private(set) var scheduledDate: Date?
-    private(set) var scheduledTitle: String?
-    private(set) var scheduledBody: String?
+    private(set) var notifications: [TransitionNotification] = []
+
+    var scheduledDate: Date? { notifications.first?.date }
+    var scheduledTitle: String? { notifications.first?.title }
+    var scheduledBody: String? { notifications.first?.body }
 
     func requestAuthorization() {
         authorizationRequested = true
     }
 
-    func schedulePhaseTransition(at date: Date, title: String, body: String) {
-        scheduledDate = date
-        scheduledTitle = title
-        scheduledBody = body
+    func reconcileTransitionNotifications(_ notifications: [TransitionNotification]) {
+        self.notifications = notifications
     }
 
-    func cancelPendingPhaseTransition() {
-        scheduledDate = nil
-        scheduledTitle = nil
-        scheduledBody = nil
+    func cancelTransitionNotifications() {
+        notifications = []
     }
 }
 
@@ -539,6 +537,74 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dayEnd, start.addingTimeInterval(35 * 60))
     }
 
+    func testStartingScheduleRunSchedulesEveryFutureTransitionAndDayEnd() {
+        let start = Date(timeIntervalSince1970: 10_500)
+        let scheduler = InMemoryNotificationScheduler()
+
+        _ = FocusTimerViewModel(
+            run: makeRun(start: start),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: scheduler,
+            now: { start }
+        )
+
+        XCTAssertEqual(
+            scheduler.notifications.map(\.date),
+            [10, 15, 20, 25, 35].map { start.addingTimeInterval(TimeInterval($0 * 60)) }
+        )
+        XCTAssertEqual(scheduler.notifications.last?.title, "Day complete")
+        XCTAssertEqual(Set(scheduler.notifications.map(\.identifier)).count, scheduler.notifications.count)
+    }
+
+    func testRestoringUnchangedScheduleUsesTheSameNotificationIdentifiers() {
+        let start = Date(timeIntervalSince1970: 11_000)
+        let run = makeRun(start: start)
+        let firstScheduler = InMemoryNotificationScheduler()
+        let restoredScheduler = InMemoryNotificationScheduler()
+
+        _ = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: firstScheduler,
+            now: { start }
+        )
+        _ = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: restoredScheduler,
+            now: { start }
+        )
+
+        XCTAssertEqual(
+            firstScheduler.notifications.map(\.identifier),
+            restoredScheduler.notifications.map(\.identifier)
+        )
+    }
+
+    func testScheduleRevisionReplacesNotificationIdentifierSet() {
+        let start = Date(timeIntervalSince1970: 11_500)
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let scheduler = InMemoryNotificationScheduler()
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: scheduler,
+            activeRunStore: activeRunStore,
+            now: { start }
+        )
+        let originalIdentifiers = Set(scheduler.notifications.map(\.identifier))
+
+        viewModel.completeHoldToInterrupt()
+        viewModel.confirmBreak(duration: 3 * 60)
+
+        let revisedIdentifiers = Set(scheduler.notifications.map(\.identifier))
+        XCTAssertTrue(revisedIdentifiers.allSatisfy { $0.contains(".r2.") })
+        XCTAssertTrue(originalIdentifiers.isDisjoint(with: revisedIdentifiers))
+        XCTAssertTrue(scheduler.notifications.contains { $0.identifier.hasSuffix("quick-break-end") })
+    }
+
     func testScheduleAdvancesThroughShortAndLongBreaksWithoutRestart() {
         let start = Date(timeIntervalSince1970: 20_000)
         let viewModel = FocusTimerViewModel(
@@ -657,10 +723,11 @@ final class FocusTimerViewModelTests: XCTestCase {
     func testScheduleStopsAtFixedDayEnd() {
         let start = Date(timeIntervalSince1970: 40_000)
         let sessionStore = InMemoryFocusSessionStore()
+        let scheduler = InMemoryNotificationScheduler()
         let viewModel = FocusTimerViewModel(
             run: makeRun(start: start),
             sessionStore: sessionStore,
-            notificationScheduler: InMemoryNotificationScheduler(),
+            notificationScheduler: scheduler,
             now: { start }
         )
 
@@ -670,6 +737,7 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.remainingTime, 0)
         XCTAssertNil(viewModel.nextTransition)
         XCTAssertEqual(sessionStore.allSessions.count, 3)
+        XCTAssertTrue(scheduler.notifications.isEmpty)
     }
 
     func testScheduleCompletionIsPersisted() {
