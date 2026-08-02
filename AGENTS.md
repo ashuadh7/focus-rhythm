@@ -1,5 +1,16 @@
 # Project Workflow
 
+## Issue Selection
+
+When the user asks to work on the "next issue," select the oldest open GitHub issue
+unless it has a new or unresolved dependency that prevents or materially changes the
+work. Check the issue's current dependencies before starting. If the oldest issue is
+blocked, continue to the next-oldest unblocked issue and tell the user which issue was
+skipped and why.
+
+Use this oldest-first policy during the prototype phase. The user may replace it with
+explicit prioritization once the prototype is sufficiently mature.
+
 For each GitHub issue assigned in a new chat:
 
 1. Create a new branch dedicated to that issue before development.
