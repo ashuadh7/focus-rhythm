@@ -2,7 +2,7 @@ import XCTest
 @testable import FocusRhythm
 
 final class RhythmSetupViewModelTests: XCTestCase {
-    func testManualTestScenarioCreatesFiveNamedTwentySecondFocusBlocks() {
+    func testManualTestScenarioIncludesNamedFocusBlocksAndLongBreak() {
         let context = makeContext()
         let store = MemoryRhythmLibraryStore(.empty)
         let activeRunStore = InMemoryActiveRunStore()
@@ -22,9 +22,19 @@ final class RhythmSetupViewModelTests: XCTestCase {
         XCTAssertEqual(focusIntervals.map(\.duration), Array(repeating: 20, count: 5))
         XCTAssertEqual(
             run.schedule.intervals.filter { $0.kind == .shortBreak }.map(\.duration),
-            Array(repeating: 10, count: 4)
+            Array(repeating: 10, count: 3)
         )
-        XCTAssertEqual(run.schedule.dayEnd.timeIntervalSince(run.startedAt), 140)
+        let longBreaks = run.schedule.intervals.filter {
+            if case .longBreak = $0.kind { return true }
+            return false
+        }
+        XCTAssertEqual(longBreaks.map(\.duration), [20])
+        XCTAssertEqual(longBreaks.map(\.label), ["Lunch"])
+        XCTAssertEqual(run.longBreakWarningTiming, LongBreakWarningTiming(
+            wrapUpLeadTime: 10,
+            finalReturnLeadTime: 5
+        ))
+        XCTAssertEqual(run.schedule.dayEnd.timeIntervalSince(run.startedAt), 2 * 60 + 30)
         XCTAssertEqual(activeRunStore.run, run)
     }
 

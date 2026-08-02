@@ -551,7 +551,7 @@ final class FocusTimerViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             scheduler.notifications.map(\.date),
-            [10, 15, 20, 25, 35].map { start.addingTimeInterval(TimeInterval($0 * 60)) }
+            [10, 15, 20, 23, 25, 35].map { start.addingTimeInterval(TimeInterval($0 * 60)) }
         )
         XCTAssertEqual(scheduler.notifications.last?.title, "Day complete")
         XCTAssertEqual(Set(scheduler.notifications.map(\.identifier)).count, scheduler.notifications.count)
@@ -657,6 +657,110 @@ final class FocusTimerViewModelTests: XCTestCase {
 
         viewModel.tick(5 * 60)
         XCTAssertEqual(viewModel.phase, .work)
+    }
+
+    func testLongBreakRestoresTheCurrentWarningStageWithoutReplayingElapsedWarnings() {
+        let start = Date(timeIntervalSince1970: 25_000)
+        let longBreak = ScheduledInterval(
+            kind: .longBreak(name: "Lunch"),
+            startDate: start,
+            endDate: start.addingTimeInterval(10 * 60),
+            isAnchored: true
+        )
+        let schedule = GeneratedDailySchedule(
+            rhythmName: "Warnings",
+            dayStart: start,
+            dayEnd: start.addingTimeInterval(15 * 60),
+            intervals: [
+                longBreak,
+                ScheduledInterval(
+                    kind: .focus,
+                    startDate: start.addingTimeInterval(10 * 60),
+                    endDate: start.addingTimeInterval(15 * 60),
+                    isAnchored: false
+                )
+            ]
+        )
+        let rhythm = DailyRhythm(
+            name: "Warnings",
+            dayStart: TimeOfDay(hour: 9, minute: 0),
+            dayEnd: TimeOfDay(hour: 9, minute: 15),
+            workDuration: 5 * 60,
+            shortBreakDuration: 60,
+            workSections: [],
+            longBreaks: []
+        )
+        let run = ActiveRhythmRun(variationID: nil, rhythm: rhythm, schedule: schedule, startedAt: start)
+
+        let wrapUp = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            now: { start.addingTimeInterval(6 * 60) }
+        )
+        XCTAssertEqual(wrapUp.longBreakWarning, .wrapUp)
+
+        let scheduler = InMemoryNotificationScheduler()
+        let finalReturn = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: scheduler,
+            now: { start.addingTimeInterval(8 * 60) }
+        )
+        XCTAssertEqual(finalReturn.longBreakWarning, .finalReturn)
+        XCTAssertFalse(scheduler.notifications.contains { $0.identifier.hasSuffix("wrap-up") })
+        XCTAssertFalse(scheduler.notifications.contains { $0.identifier.hasSuffix("final-return") })
+    }
+
+    func testLongBreakWarningsAreScheduledOnceAndStagesThatDoNotFitAreOmitted() {
+        let start = Date(timeIntervalSince1970: 27_000)
+        let longBreakID = UUID()
+        let schedule = GeneratedDailySchedule(
+            rhythmName: "Warnings",
+            dayStart: start,
+            dayEnd: start.addingTimeInterval(15 * 60),
+            intervals: [
+                ScheduledInterval(
+                    id: longBreakID,
+                    kind: .longBreak(name: "Lunch"),
+                    startDate: start,
+                    endDate: start.addingTimeInterval(10 * 60),
+                    isAnchored: true
+                ),
+                ScheduledInterval(
+                    kind: .longBreak(name: "Reset"),
+                    startDate: start.addingTimeInterval(10 * 60),
+                    endDate: start.addingTimeInterval(12 * 60),
+                    isAnchored: true
+                )
+            ]
+        )
+        let rhythm = DailyRhythm(
+            name: "Warnings",
+            dayStart: TimeOfDay(hour: 9, minute: 0),
+            dayEnd: TimeOfDay(hour: 9, minute: 15),
+            workDuration: 5 * 60,
+            shortBreakDuration: 60,
+            workSections: [],
+            longBreaks: []
+        )
+        let scheduler = InMemoryNotificationScheduler()
+
+        _ = FocusTimerViewModel(
+            run: ActiveRhythmRun(variationID: nil, rhythm: rhythm, schedule: schedule, startedAt: start),
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: scheduler,
+            now: { start }
+        )
+
+        let warningNotifications = scheduler.notifications.filter { $0.identifier.contains(".long-break.") }
+        XCTAssertEqual(warningNotifications.count, 2)
+        XCTAssertEqual(Set(warningNotifications.map(\.identifier)).count, 2)
+        XCTAssertEqual(
+            warningNotifications.map(\.date),
+            [5, 8].map { start.addingTimeInterval(TimeInterval($0 * 60)) }
+        )
+        XCTAssertTrue(warningNotifications.allSatisfy { $0.identifier.contains(longBreakID.uuidString) })
     }
 
     func testForegroundCatchUpRecordsPassedFocusIntervalsOnce() {
@@ -900,6 +1004,33 @@ final class FocusTimerViewModelTests: XCTestCase {
 
         XCTAssertEqual(activeRunStore.run?.status, .completed)
         XCTAssertEqual(activeRunStore.run?.recordedIntervalIDs.count, 3)
+    }
+
+    func testManualScheduleEndPersistsDistinctStatusAndPartialFocus() {
+        let start = Date(timeIntervalSince1970: 47_000)
+        var currentDate = start.addingTimeInterval(3 * 60)
+        let activeRunStore = InMemoryActiveRunStore()
+        let sessionStore = InMemoryFocusSessionStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+        viewModel.requestEndCycle()
+
+        XCTAssertTrue(viewModel.confirmEndCycle(reasoning: Self.longEnoughReasoning))
+
+        XCTAssertEqual(activeRunStore.run?.status, .ended)
+        XCTAssertNotEqual(activeRunStore.run?.status, .completed)
+        XCTAssertEqual(sessionStore.allSessions.count, 1)
+        XCTAssertEqual(sessionStore.allSessions.first?.duration, 3 * 60)
+        XCTAssertEqual(sessionStore.allSessions.first?.completed, false)
+        currentDate = start.addingTimeInterval(40 * 60)
+        XCTAssertEqual(activeRunStore.run?.status, .ended)
     }
 
     private func makeRun(start: Date) -> ActiveRhythmRun {

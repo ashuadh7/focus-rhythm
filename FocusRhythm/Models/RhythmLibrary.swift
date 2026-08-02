@@ -15,6 +15,11 @@ struct PlannedRhythmSelection: Codable, Equatable {
     let variationID: UUID
 }
 
+struct LongBreakWarningTiming: Codable, Equatable {
+    let wrapUpLeadTime: TimeInterval
+    let finalReturnLeadTime: TimeInterval
+}
+
 struct ActiveRhythmRun: Codable, Equatable {
     enum Status: String, Codable {
         case active
@@ -31,6 +36,7 @@ struct ActiveRhythmRun: Codable, Equatable {
     var extendedIntervalIDs: Set<UUID>
     var status: Status
     var quickBreakEndsAt: Date?
+    var longBreakWarningTiming: LongBreakWarningTiming?
 
     init(
         variationID: UUID?,
@@ -41,7 +47,8 @@ struct ActiveRhythmRun: Codable, Equatable {
         recordedIntervalIDs: Set<UUID> = [],
         extendedIntervalIDs: Set<UUID> = [],
         status: Status = .active,
-        quickBreakEndsAt: Date? = nil
+        quickBreakEndsAt: Date? = nil,
+        longBreakWarningTiming: LongBreakWarningTiming? = nil
     ) {
         self.variationID = variationID
         self.rhythm = rhythm
@@ -52,11 +59,12 @@ struct ActiveRhythmRun: Codable, Equatable {
         self.extendedIntervalIDs = extendedIntervalIDs
         self.status = status
         self.quickBreakEndsAt = quickBreakEndsAt
+        self.longBreakWarningTiming = longBreakWarningTiming
     }
 
     private enum CodingKeys: String, CodingKey {
         case variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, extendedIntervalIDs, status
-        case quickBreakEndsAt
+        case quickBreakEndsAt, longBreakWarningTiming
     }
 
     init(from decoder: Decoder) throws {
@@ -70,6 +78,7 @@ struct ActiveRhythmRun: Codable, Equatable {
         extendedIntervalIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .extendedIntervalIDs) ?? []
         status = try container.decodeIfPresent(Status.self, forKey: .status) ?? .active
         quickBreakEndsAt = try container.decodeIfPresent(Date.self, forKey: .quickBreakEndsAt)
+        longBreakWarningTiming = try container.decodeIfPresent(LongBreakWarningTiming.self, forKey: .longBreakWarningTiming)
     }
 }
 

@@ -125,6 +125,13 @@ struct TimerHomeView: View {
                         .foregroundStyle(.orange)
                 }
 
+                if let warningMessage = viewModel.longBreakWarningMessage {
+                    Text(warningMessage)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                }
+
                 if viewModel.phase == .break || viewModel.phase == .shortBreak {
                     WaterPromptView(viewModel: waterLoggingViewModel)
                 } else {

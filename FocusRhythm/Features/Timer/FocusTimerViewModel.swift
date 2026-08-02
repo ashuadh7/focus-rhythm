@@ -17,6 +17,14 @@ final class FocusTimerViewModel {
     /// Minimum number of words required in the end-cycle reasoning before it can be confirmed.
     static let endCycleMinimumWordCount = 20
 
+    enum LongBreakWarning: Equatable {
+        case wrapUp
+        case finalReturn
+    }
+
+    static let longBreakWrapUpLeadTime: TimeInterval = 5 * 60
+    static let longBreakFinalReturnLeadTime: TimeInterval = 2 * 60
+
     private(set) var phase: FocusPhase
     private(set) var remainingTime: TimeInterval
     private(set) var workDuration: TimeInterval
@@ -144,6 +152,36 @@ final class FocusTimerViewModel {
     var currentBlockName: String? {
         guard let schedule, let currentIntervalIndex else { return nil }
         return schedule.intervals[currentIntervalIndex].label
+    }
+
+    var longBreakWarning: LongBreakWarning? {
+        guard case .longBreak = phase,
+              let schedule,
+              let currentIntervalIndex
+        else { return nil }
+        let interval = schedule.intervals[currentIntervalIndex]
+        let timing = resolvedLongBreakWarningTiming
+
+        if interval.duration > timing.finalReturnLeadTime,
+           remainingTime <= timing.finalReturnLeadTime {
+            return .finalReturn
+        }
+        if interval.duration > timing.wrapUpLeadTime,
+           remainingTime <= timing.wrapUpLeadTime {
+            return .wrapUp
+        }
+        return nil
+    }
+
+    var longBreakWarningMessage: String? {
+        guard let warning = longBreakWarning else { return nil }
+        let timing = resolvedLongBreakWarningTiming
+        switch warning {
+        case .wrapUp:
+            return "\(Self.durationDescription(timing.wrapUpLeadTime)) left. Begin wrapping up."
+        case .finalReturn:
+            return "\(Self.durationDescription(timing.finalReturnLeadTime)) left. Get ready to return."
+        }
     }
 
     var nextTransition: (title: String, date: Date)? {
@@ -380,7 +418,9 @@ final class FocusTimerViewModel {
     func confirmEndCycle(reasoning: String) -> Bool {
         guard isEndingCycle, Self.wordCount(reasoning) >= Self.endCycleMinimumWordCount else { return false }
 
-        if phase == .work {
+        if phase == .work, activeRun != nil {
+            recordInterruptedScheduledWorkSession()
+        } else if phase == .work {
             let elapsed = max(0, workDuration - remainingTime)
             recordInterruptedWorkSession(elapsed: elapsed)
         } else if phase == .break, let remainder = pendingWorkRemainder {
@@ -543,6 +583,27 @@ final class FocusTimerViewModel {
         activeRun?.recordedIntervalIDs.insert(interval.id)
     }
 
+    private func recordInterruptedScheduledWorkSession() {
+        guard let schedule,
+              let currentIntervalIndex,
+              schedule.intervals.indices.contains(currentIntervalIndex)
+        else { return }
+        let interval = schedule.intervals[currentIntervalIndex]
+        guard interval.kind == .focus else { return }
+        let endedAt = min(now(), interval.endDate)
+        let elapsed = max(
+            0,
+            endedAt.timeIntervalSince(interval.startDate) - interval.excludedDuration
+        )
+        guard elapsed > 0 else { return }
+        sessionStore.addSession(
+            startedAt: interval.startDate,
+            endedAt: endedAt,
+            duration: elapsed,
+            completed: false
+        )
+    }
+
     private func updateActiveRunStatus(_ status: ActiveRhythmRun.Status) {
         guard activeRun?.status != status else { return }
         activeRun?.status = status
@@ -694,6 +755,17 @@ final class FocusTimerViewModel {
             )
         }
 
+        for interval in activeRun.schedule.intervals {
+            guard case let .longBreak(name) = interval.kind else { continue }
+            notifications.append(contentsOf: Self.longBreakWarningNotifications(
+                for: interval,
+                name: name,
+                revisionKey: revisionKey,
+                timing: resolvedLongBreakWarningTiming,
+                after: date
+            ))
+        }
+
         if let quickBreakEndsAt = activeRun.quickBreakEndsAt, quickBreakEndsAt > date {
             notifications.append(
                 TransitionNotification(
@@ -716,7 +788,49 @@ final class FocusTimerViewModel {
             )
         }
 
-        notificationScheduler.reconcileTransitionNotifications(notifications)
+        notificationScheduler.reconcileTransitionNotifications(
+            notifications.sorted { $0.date < $1.date }
+        )
+    }
+
+    private static func longBreakWarningNotifications(
+        for interval: ScheduledInterval,
+        name: String,
+        revisionKey: String,
+        timing: LongBreakWarningTiming,
+        after date: Date
+    ) -> [TransitionNotification] {
+        let warnings: [(suffix: String, leadTime: TimeInterval, title: String, body: String)] = [
+            ("wrap-up", timing.wrapUpLeadTime, "\(name): wrap up", "Begin wrapping up your long break."),
+            ("final-return", timing.finalReturnLeadTime, "\(name): return soon", "Get ready to return to focus.")
+        ]
+
+        return warnings.compactMap { warning in
+            let warningDate = interval.endDate.addingTimeInterval(-warning.leadTime)
+            guard warningDate > interval.startDate, warningDate > date else { return nil }
+            return TransitionNotification(
+                identifier: "\(UNUserNotificationScheduler.transitionIdentifierPrefix)\(revisionKey).long-break.\(interval.id.uuidString).\(warning.suffix)",
+                date: warningDate,
+                title: warning.title,
+                body: warning.body
+            )
+        }
+    }
+
+    private var resolvedLongBreakWarningTiming: LongBreakWarningTiming {
+        activeRun?.longBreakWarningTiming ?? LongBreakWarningTiming(
+            wrapUpLeadTime: Self.longBreakWrapUpLeadTime,
+            finalReturnLeadTime: Self.longBreakFinalReturnLeadTime
+        )
+    }
+
+    private static func durationDescription(_ duration: TimeInterval) -> String {
+        let seconds = Int(duration)
+        if seconds.isMultiple(of: 60) {
+            let minutes = seconds / 60
+            return "\(minutes) \(minutes == 1 ? "minute" : "minutes")"
+        }
+        return "\(seconds) seconds"
     }
 
     private static func notificationContent(for kind: ScheduledIntervalKind) -> (title: String, body: String) {
