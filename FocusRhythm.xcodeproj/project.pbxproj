@@ -34,6 +34,8 @@
 		0F1000190000000000000001 /* RhythmSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001B0000000000000001 /* RhythmSetupView.swift */; };
 		0F10001A0000000000000001 /* RhythmLibraryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001C0000000000000001 /* RhythmLibraryStoreTests.swift */; };
 		0F10001B0000000000000001 /* RhythmSetupViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */; };
+		0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001E0000000000000001 /* ActiveRunStore.swift */; };
+		0F10001D0000000000000001 /* ActiveRunStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001F0000000000000001 /* ActiveRunStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +78,8 @@
 		0F20001B0000000000000001 /* RhythmSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmSetupView.swift; sourceTree = "<group>"; };
 		0F20001C0000000000000001 /* RhythmLibraryStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmLibraryStoreTests.swift; sourceTree = "<group>"; };
 		0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmSetupViewModelTests.swift; sourceTree = "<group>"; };
+		0F20001E0000000000000001 /* ActiveRunStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRunStore.swift; sourceTree = "<group>"; };
+		0F20001F0000000000000001 /* ActiveRunStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRunStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -195,6 +199,7 @@
 				0F2000170000000000000001 /* DailyScheduleGeneratorTests.swift */,
 				0F20001C0000000000000001 /* RhythmLibraryStoreTests.swift */,
 				0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */,
+				0F20001F0000000000000001 /* ActiveRunStoreTests.swift */,
 			);
 			path = FocusRhythmTests;
 			sourceTree = "<group>";
@@ -216,6 +221,7 @@
 				0F20000F0000000000000001 /* FocusSessionStore.swift */,
 				0F2000140000000000000001 /* NotificationScheduling.swift */,
 				0F2000190000000000000001 /* RhythmLibraryStore.swift */,
+				0F20001E0000000000000001 /* ActiveRunStore.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -326,6 +332,7 @@
 				0F1000170000000000000001 /* RhythmLibraryStore.swift in Sources */,
 				0F1000180000000000000001 /* RhythmSetupViewModel.swift in Sources */,
 				0F1000190000000000000001 /* RhythmSetupView.swift in Sources */,
+				0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,6 +347,7 @@
 				0F1000150000000000000001 /* DailyScheduleGeneratorTests.swift in Sources */,
 				0F10001A0000000000000001 /* RhythmLibraryStoreTests.swift in Sources */,
 				0F10001B0000000000000001 /* RhythmSetupViewModelTests.swift in Sources */,
+				0F10001D0000000000000001 /* ActiveRunStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

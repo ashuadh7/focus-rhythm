@@ -29,8 +29,12 @@ struct TimerHomeView: View {
         self.onEndDay = onEndDay
     }
 
-    init(run: ActiveRhythmRun, onEndDay: @escaping () -> Void = {}) {
-        _viewModel = State(initialValue: FocusTimerViewModel(run: run))
+    init(
+        run: ActiveRhythmRun,
+        activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
+        onEndDay: @escaping () -> Void = {}
+    ) {
+        _viewModel = State(initialValue: FocusTimerViewModel(run: run, activeRunStore: activeRunStore))
         self.onEndDay = onEndDay
     }
 
@@ -118,13 +122,11 @@ struct TimerHomeView: View {
                 }
             }
 
-            if !viewModel.isScheduleDriven && viewModel.phase != .completedDay {
+            if viewModel.phase != .completedDay {
                 primaryControl
             } else {
-                if viewModel.phase == .completedDay {
-                    Button("Return to setup", action: onEndDay)
-                        .buttonStyle(.borderedProminent)
-                }
+                Button("Return to setup", action: onEndDay)
+                    .buttonStyle(.borderedProminent)
             }
 
             if viewModel.isAddTimeAvailable {
@@ -203,7 +205,9 @@ struct TimerHomeView: View {
     }
 
     private func beginHoldIfNeeded() {
-        guard (viewModel.phase == .work || viewModel.phase == .break), holdTimer == nil else { return }
+        guard (viewModel.phase == .work || viewModel.phase == .break || viewModel.phase == .shortBreak),
+              holdTimer == nil
+        else { return }
         holdProgress = 0
         let holdDuration = currentHoldDuration
         holdTimer = Timer.scheduledTimer(withTimeInterval: Self.holdTickInterval, repeats: true) { timer in

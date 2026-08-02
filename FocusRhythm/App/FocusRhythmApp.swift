@@ -10,7 +10,7 @@ struct FocusRhythmApp: App {
 }
 
 private struct AppEntryView: View {
-    @State private var activeRun: ActiveRhythmRun?
+    @State private var activeRun: ActiveRhythmRun? = ActiveRunRestorer().restore()
 
     var body: some View {
         if let activeRun {

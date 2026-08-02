@@ -16,10 +16,57 @@ struct PlannedRhythmSelection: Codable, Equatable {
 }
 
 struct ActiveRhythmRun: Codable, Equatable {
+    enum Status: String, Codable {
+        case active
+        case completed
+        case ended
+    }
+
     let variationID: UUID?
     let rhythm: DailyRhythm
-    let schedule: GeneratedDailySchedule
+    var schedule: GeneratedDailySchedule
     let startedAt: Date
+    var scheduleRevision: Int
+    var recordedIntervalIDs: Set<UUID>
+    var status: Status
+    var quickBreakEndsAt: Date?
+
+    init(
+        variationID: UUID?,
+        rhythm: DailyRhythm,
+        schedule: GeneratedDailySchedule,
+        startedAt: Date,
+        scheduleRevision: Int = 1,
+        recordedIntervalIDs: Set<UUID> = [],
+        status: Status = .active,
+        quickBreakEndsAt: Date? = nil
+    ) {
+        self.variationID = variationID
+        self.rhythm = rhythm
+        self.schedule = schedule
+        self.startedAt = startedAt
+        self.scheduleRevision = scheduleRevision
+        self.recordedIntervalIDs = recordedIntervalIDs
+        self.status = status
+        self.quickBreakEndsAt = quickBreakEndsAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, status
+        case quickBreakEndsAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        variationID = try container.decodeIfPresent(UUID.self, forKey: .variationID)
+        rhythm = try container.decode(DailyRhythm.self, forKey: .rhythm)
+        schedule = try container.decode(GeneratedDailySchedule.self, forKey: .schedule)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        scheduleRevision = try container.decodeIfPresent(Int.self, forKey: .scheduleRevision) ?? 1
+        recordedIntervalIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .recordedIntervalIDs) ?? []
+        status = try container.decodeIfPresent(Status.self, forKey: .status) ?? .active
+        quickBreakEndsAt = try container.decodeIfPresent(Date.self, forKey: .quickBreakEndsAt)
+    }
 }
 
 enum RunEndMode: String, CaseIterable, Identifiable {
