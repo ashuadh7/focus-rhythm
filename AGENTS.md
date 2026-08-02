@@ -11,12 +11,28 @@ skipped and why.
 Use this oldest-first policy during the prototype phase. The user may replace it with
 explicit prioritization once the prototype is sufficiently mature.
 
+## Branch and Milestone Strategy
+
+`development` is the integration branch for all work in the current milestone. `main`
+must remain the stable branch and must not receive individual issue branches directly.
+
+- Create every issue branch from the latest `development` branch.
+- Open issue pull requests against `development`, not `main`.
+- Merge approved issue pull requests into `development` throughout the milestone.
+- Merge `development` into `main` only when the entire milestone is complete, has been
+  reviewed as a whole, and the user has explicitly approved the milestone merge.
+- After a milestone is merged, synchronize `development` with `main` before starting
+  work on the next milestone.
+
 For each GitHub issue assigned in a new chat:
 
-1. Create a new branch dedicated to that issue before development.
+1. Switch to the local `development` branch, synchronize it with `origin/development`
+   when the remote branch exists, then create a branch dedicated to that issue from
+   `development` before beginning development.
 2. Implement the issue and run appropriate automated verification.
 3. Ask the user to manually review the completed behavior.
-4. After manual approval, commit and push the changes and open a pull request that includes a verification checklist.
+4. After manual approval, commit and push the changes and open a pull request targeting
+   `development` that includes a verification checklist.
 5. Wait for the user to double-check and explicitly approve merging.
 6. Merge the pull request only after that approval.
 7. Delete the merged local and remote issue branches.

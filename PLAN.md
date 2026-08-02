@@ -109,6 +109,26 @@ direction is deliberately narrower than a task manager:
 Avoid importing or duplicating a full to-do system until the daily rhythm and
 break-routine loop have proved useful in real use.
 
+## Later: Scheduled launch ritual
+
+Help the user arrive near an intended start time without treating unattended time as
+focus. The alarm begins preparation rather than work; focus starts only after the user
+explicitly confirms that they are present.
+
+- Schedule a next-day alarm and choose a bounded preparation runway
+- Optionally give the runway a simple intention such as waking up, eating, showering,
+  or clearing the desk
+- Keep preparation visually distinct from an active focus session
+- At the expected focus time, offer a ready check to start, take one short bounded
+  delay, or rebuild the day from now
+- Generate the finite rhythm from the actual confirmed start time, whether early or late
+- Track arrival within the intended window separately from completed focus time
+- Preserve the selected rhythm's focus cadence, long breaks, and break intentions after
+  the runtime begins
+
+Do not build a fully clock-anchored future-day schedule, record scheduled time as work,
+or add punitive missed-alarm streaks or unlimited snoozing.
+
 ## Later roadmap
 
 **v0.5 — JSON import/export**
