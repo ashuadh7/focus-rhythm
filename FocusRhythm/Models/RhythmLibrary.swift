@@ -49,11 +49,13 @@ struct ActiveRhythmRun: Codable, Equatable {
         case active
         case completed
         case ended
+        case stopped
     }
 
     let variationID: UUID?
     let rhythm: DailyRhythm
     var schedule: GeneratedDailySchedule
+    let originalFocusTarget: TimeInterval
     let startedAt: Date
     var scheduleRevision: Int
     var recordedIntervalIDs: Set<UUID>
@@ -69,6 +71,7 @@ struct ActiveRhythmRun: Codable, Equatable {
         rhythm: DailyRhythm,
         schedule: GeneratedDailySchedule,
         startedAt: Date,
+        originalFocusTarget: TimeInterval? = nil,
         scheduleRevision: Int = 1,
         recordedIntervalIDs: Set<UUID> = [],
         extendedIntervalIDs: Set<UUID> = [],
@@ -81,6 +84,7 @@ struct ActiveRhythmRun: Codable, Equatable {
         self.variationID = variationID
         self.rhythm = rhythm
         self.schedule = schedule
+        self.originalFocusTarget = originalFocusTarget ?? schedule.expectedFocusTime
         self.startedAt = startedAt
         self.scheduleRevision = scheduleRevision
         self.recordedIntervalIDs = recordedIntervalIDs
@@ -92,7 +96,7 @@ struct ActiveRhythmRun: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, extendedIntervalIDs, status
+        case id, variationID, rhythm, schedule, originalFocusTarget, startedAt, scheduleRevision, recordedIntervalIDs, extendedIntervalIDs, status
         case quickBreakEndsAt, longBreakWarningTiming, adjustments
     }
 
@@ -102,6 +106,8 @@ struct ActiveRhythmRun: Codable, Equatable {
         variationID = try container.decodeIfPresent(UUID.self, forKey: .variationID)
         rhythm = try container.decode(DailyRhythm.self, forKey: .rhythm)
         schedule = try container.decode(GeneratedDailySchedule.self, forKey: .schedule)
+        originalFocusTarget = try container.decodeIfPresent(TimeInterval.self, forKey: .originalFocusTarget)
+            ?? schedule.expectedFocusTime
         startedAt = try container.decode(Date.self, forKey: .startedAt)
         scheduleRevision = try container.decodeIfPresent(Int.self, forKey: .scheduleRevision) ?? 1
         recordedIntervalIDs = try container.decodeIfPresent(Set<UUID>.self, forKey: .recordedIntervalIDs) ?? []

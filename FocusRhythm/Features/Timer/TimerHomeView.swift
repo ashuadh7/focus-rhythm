@@ -330,7 +330,7 @@ struct TimerHomeView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Stop") {
                         if viewModel.confirmEndCycle(reasoning: endCycleReasoning) {
-                            isShowingSummary = true
+                            onEndDay()
                         }
                     }
                         .disabled(endCycleWordCount < FocusTimerViewModel.endCycleMinimumWordCount)

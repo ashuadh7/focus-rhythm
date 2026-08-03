@@ -62,6 +62,7 @@ final class FocusTimerViewModel {
     private var currentWorkStartedAt: Date?
     private var activeRun: ActiveRhythmRun?
     private let activeRunStore: ActiveRunStoring?
+    private let stoppedRunStore: StoppedRunStoring?
     private let runHistoryStore: RunHistoryStoring?
     private var schedule: GeneratedDailySchedule? { activeRun?.schedule }
     private var runtimeDate: Date
@@ -85,6 +86,7 @@ final class FocusTimerViewModel {
         self.now = now
         self.activeRun = nil
         self.activeRunStore = nil
+        self.stoppedRunStore = nil
         self.runHistoryStore = nil
         self.runtimeDate = now()
         self.phase = phase
@@ -99,6 +101,7 @@ final class FocusTimerViewModel {
         sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
         notificationScheduler: NotificationScheduling = UNUserNotificationScheduler(),
         activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
+        stoppedRunStore: StoppedRunStoring = UserDefaultsStoppedRunStore(),
         runHistoryStore: RunHistoryStoring = UserDefaultsRunHistoryStore(),
         now: @escaping () -> Date = Date.init
     ) {
@@ -108,6 +111,7 @@ final class FocusTimerViewModel {
         self.now = now
         self.activeRun = run
         self.activeRunStore = activeRunStore
+        self.stoppedRunStore = stoppedRunStore
         self.runHistoryStore = runHistoryStore
         self.runtimeDate = now()
         self.phase = .idle
@@ -445,6 +449,8 @@ final class FocusTimerViewModel {
 
         if phase == .work, activeRun != nil {
             recordInterruptedScheduledWorkSession()
+        } else if phase == .break, activeRun?.quickBreakEndsAt != nil {
+            recordInterruptedQuickBreakWorkSession()
         } else if phase == .work {
             let elapsed = max(0, workDuration - remainingTime)
             recordInterruptedWorkSession(elapsed: elapsed)
@@ -463,7 +469,8 @@ final class FocusTimerViewModel {
         resetAddTime()
         syncPhaseEndTime()
         if activeRun != nil {
-            updateActiveRunStatus(.ended)
+            preserveStoppedRemainder()
+            updateActiveRunStatus(.stopped)
         }
         return true
     }
@@ -634,15 +641,67 @@ final class FocusTimerViewModel {
         activeRun?.status = status
         if let activeRun {
             activeRunStore?.save(activeRun)
-            let outcome: CompletedRhythmRun.Outcome = status == .completed ? .completedAsPlanned : .endedEarly
-            runHistoryStore?.record(CompletedRhythmRun(
-                id: activeRun.id,
-                startedAt: activeRun.startedAt,
-                schedule: activeRun.schedule,
-                outcome: outcome,
-                adjustments: activeRun.adjustments
-            ))
+            if status == .completed || status == .ended {
+                let outcome: CompletedRhythmRun.Outcome = status == .completed ? .completedAsPlanned : .endedEarly
+                runHistoryStore?.record(CompletedRhythmRun(
+                    id: activeRun.id,
+                    startedAt: activeRun.startedAt,
+                    schedule: activeRun.schedule,
+                    outcome: outcome,
+                    adjustments: activeRun.adjustments
+                ))
+            }
         }
+    }
+
+    private func preserveStoppedRemainder() {
+        guard let activeRun else { return }
+        let stoppedAt = now()
+        let remainingPlan = activeRun.schedule.intervals.compactMap { interval -> ContinuationPlanItem? in
+            guard interval.endDate > stoppedAt else { return nil }
+            let resumeAfterQuickBreak = activeRun.quickBreakEndsAt.flatMap { quickBreakEnd in
+                interval.kind == .focus && interval.startDate <= stoppedAt && stoppedAt < interval.endDate
+                    ? quickBreakEnd
+                    : nil
+            }
+            let start = max(interval.startDate, stoppedAt, resumeAfterQuickBreak ?? stoppedAt)
+            let duration = max(0, interval.endDate.timeIntervalSince(start))
+            guard duration > 0 else { return nil }
+            return ContinuationPlanItem(
+                sourceIntervalID: interval.id,
+                kind: interval.kind,
+                duration: duration,
+                label: interval.label
+            )
+        }
+        stoppedRunStore?.save(StoppedRhythmRun(
+            id: activeRun.id,
+            sourceRun: activeRun,
+            stoppedAt: stoppedAt,
+            completedFocusTime: max(0, activeRun.schedule.expectedFocusTime - remainingPlan
+                .filter { $0.kind == .focus }
+                .reduce(0) { $0 + $1.duration }),
+            completedFocusIntervals: activeRun.recordedIntervalIDs.count,
+            originalFocusTarget: activeRun.originalFocusTarget,
+            remainingPlan: remainingPlan
+        ))
+    }
+
+    private func recordInterruptedQuickBreakWorkSession() {
+        guard let activeRun,
+              let breakStartedAt = activeRun.adjustments.last(where: { $0.kind == .midWorkBreak })?.date,
+              let interval = activeRun.schedule.intervals.first(where: {
+                  $0.kind == .focus && $0.startDate <= breakStartedAt && breakStartedAt < $0.endDate
+              })
+        else { return }
+        let elapsed = max(0, breakStartedAt.timeIntervalSince(interval.startDate))
+        guard elapsed > 0 else { return }
+        sessionStore.addSession(
+            startedAt: interval.startDate,
+            endedAt: breakStartedAt,
+            duration: elapsed,
+            completed: false
+        )
     }
 
     private func beginScheduledQuickBreak(duration: TimeInterval) {

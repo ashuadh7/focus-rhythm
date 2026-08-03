@@ -836,6 +836,36 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.remainingTime, 10 * 60)
     }
 
+    func testStoppingDuringInsertedBreakPreservesWorkedAndRemainingFocus() {
+        let start = Date(timeIntervalSince1970: 37_500)
+        var currentDate = start.addingTimeInterval(3 * 60)
+        let activeRunStore = InMemoryActiveRunStore()
+        let stoppedRunStore = InMemoryStoppedRunStore()
+        let sessionStore = InMemoryFocusSessionStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: sessionStore,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            stoppedRunStore: stoppedRunStore,
+            now: { currentDate }
+        )
+
+        viewModel.completeHoldToInterrupt()
+        viewModel.confirmBreak(duration: 3 * 60)
+        currentDate = start.addingTimeInterval(4 * 60)
+        viewModel.requestEndCycle()
+        XCTAssertTrue(viewModel.confirmEndCycle(reasoning: Self.longEnoughReasoning))
+
+        XCTAssertEqual(sessionStore.allSessions.first?.duration, 3 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.completedFocusTime, 3 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.remainingFocusTime, 19 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.originalFocusTarget, 25 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.remainingPlan.first?.duration, 7 * 60)
+    }
+
     func testScheduledShortBreakCanBeSkippedWithHold() {
         let start = Date(timeIntervalSince1970: 38_000)
         var currentDate = start
@@ -1010,6 +1040,7 @@ final class FocusTimerViewModelTests: XCTestCase {
         let start = Date(timeIntervalSince1970: 47_000)
         var currentDate = start.addingTimeInterval(3 * 60)
         let activeRunStore = InMemoryActiveRunStore()
+        let stoppedRunStore = InMemoryStoppedRunStore()
         let sessionStore = InMemoryFocusSessionStore()
         let run = makeRun(start: start)
         activeRunStore.run = run
@@ -1018,19 +1049,24 @@ final class FocusTimerViewModelTests: XCTestCase {
             sessionStore: sessionStore,
             notificationScheduler: InMemoryNotificationScheduler(),
             activeRunStore: activeRunStore,
+            stoppedRunStore: stoppedRunStore,
             now: { currentDate }
         )
         viewModel.requestEndCycle()
 
         XCTAssertTrue(viewModel.confirmEndCycle(reasoning: Self.longEnoughReasoning))
 
-        XCTAssertEqual(activeRunStore.run?.status, .ended)
+        XCTAssertEqual(activeRunStore.run?.status, .stopped)
         XCTAssertNotEqual(activeRunStore.run?.status, .completed)
         XCTAssertEqual(sessionStore.allSessions.count, 1)
         XCTAssertEqual(sessionStore.allSessions.first?.duration, 3 * 60)
         XCTAssertEqual(sessionStore.allSessions.first?.completed, false)
         currentDate = start.addingTimeInterval(40 * 60)
-        XCTAssertEqual(activeRunStore.run?.status, .ended)
+        XCTAssertEqual(activeRunStore.run?.status, .stopped)
+        XCTAssertEqual(stoppedRunStore.run?.completedFocusTime, 3 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.remainingFocusTime, 22 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.originalFocusTarget, 25 * 60)
+        XCTAssertEqual(stoppedRunStore.run?.remainingPlan.first?.label, "Test task")
     }
 
     func testLongBreakCanBeSkippedWithRemainingTimeReflowed() {

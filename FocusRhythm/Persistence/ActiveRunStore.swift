@@ -6,6 +6,110 @@ protocol ActiveRunStoring {
     func clear()
 }
 
+protocol StoppedRunStoring {
+    func load() -> StoppedRhythmRun?
+    func save(_ run: StoppedRhythmRun)
+    func clear()
+}
+
+struct ContinuationPlanItem: Codable, Equatable, Identifiable {
+    let id: UUID
+    let sourceIntervalID: UUID
+    let kind: ScheduledIntervalKind
+    let duration: TimeInterval
+    let label: String?
+    /// Reserved for the planner: a continuation can gain a task identity without
+    /// changing the persisted remainder format.
+    let workItemID: UUID?
+
+    init(
+        id: UUID = UUID(),
+        sourceIntervalID: UUID,
+        kind: ScheduledIntervalKind,
+        duration: TimeInterval,
+        label: String?,
+        workItemID: UUID? = nil
+    ) {
+        self.id = id
+        self.sourceIntervalID = sourceIntervalID
+        self.kind = kind
+        self.duration = duration
+        self.label = label
+        self.workItemID = workItemID
+    }
+}
+
+struct StoppedRhythmRun: Codable, Equatable, Identifiable {
+    let id: UUID
+    let sourceRun: ActiveRhythmRun
+    let stoppedAt: Date
+    let completedFocusTime: TimeInterval
+    let completedFocusIntervals: Int
+    let originalFocusTarget: TimeInterval
+    let remainingPlan: [ContinuationPlanItem]
+
+    var remainingFocusTime: TimeInterval {
+        remainingPlan.filter { $0.kind == .focus }.reduce(0) { $0 + $1.duration }
+    }
+
+    func continuedRun(using itemIDs: Set<UUID>, at start: Date) -> ActiveRhythmRun? {
+        let selected = remainingPlan.filter { itemIDs.contains($0.id) }
+        guard selected.contains(where: { $0.kind == .focus }) else { return nil }
+        var cursor = start
+        let intervals = selected.map { item -> ScheduledInterval in
+            let interval = ScheduledInterval(
+                kind: item.kind,
+                startDate: cursor,
+                endDate: cursor.addingTimeInterval(item.duration),
+                isAnchored: false,
+                label: item.label
+            )
+            cursor = interval.endDate
+            return interval
+        }
+        let schedule = GeneratedDailySchedule(
+            rhythmName: sourceRun.schedule.rhythmName,
+            dayStart: start,
+            dayEnd: cursor,
+            intervals: intervals
+        )
+        return ActiveRhythmRun(
+            variationID: sourceRun.variationID,
+            rhythm: sourceRun.rhythm,
+            schedule: schedule,
+            startedAt: start,
+            originalFocusTarget: originalFocusTarget
+        )
+    }
+}
+
+final class UserDefaultsStoppedRunStore: StoppedRunStoring {
+    private static let key = "rhythm.stopped-run.v1"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func load() -> StoppedRhythmRun? {
+        guard let data = defaults.data(forKey: Self.key) else { return nil }
+        guard let run = try? JSONDecoder().decode(StoppedRhythmRun.self, from: data) else {
+            defaults.removeObject(forKey: Self.key)
+            return nil
+        }
+        return run
+    }
+
+    func save(_ run: StoppedRhythmRun) {
+        guard let data = try? JSONEncoder().encode(run) else { return }
+        defaults.set(data, forKey: Self.key)
+    }
+
+    func clear() {
+        defaults.removeObject(forKey: Self.key)
+    }
+}
+
 /// Keeps a compact snapshot of runs that have reached a deliberate end. The active-run
 /// record is replaced as a rhythm changes, so it cannot be used to describe a completed
 /// day's final plan after a later run begins.
