@@ -82,6 +82,13 @@ enum ScheduledIntervalKind: Codable, Equatable {
     case longBreak(name: String)
 }
 
+extension ScheduledIntervalKind {
+    var isLongBreak: Bool {
+        if case .longBreak = self { return true }
+        return false
+    }
+}
+
 struct ScheduledInterval: Codable, Equatable {
     let id: UUID
     let kind: ScheduledIntervalKind
@@ -264,6 +271,66 @@ extension GeneratedDailySchedule {
                 intervals: rebuilt
             ),
             appliedAdjustment: appliedAdjustment
+        )
+    }
+
+    /// Changes the remaining portion of an anchored interval (currently used for long
+    /// breaks), then moves the following flexible section while preserving its next
+    /// anchor and the planned day end. Positive time comes out of that section's final
+    /// focus interval; negative time closes the current interval early.
+    func reflowingAfterAnchoredInterval(at index: Int, from cutoff: Date, by requestedAdjustment: TimeInterval) -> ReflowResult {
+        guard intervals.indices.contains(index), intervals[index].isAnchored,
+              intervals[index].startDate <= cutoff, cutoff < intervals[index].endDate,
+              requestedAdjustment != 0
+        else { return ReflowResult(schedule: self, appliedAdjustment: 0) }
+
+        let current = intervals[index]
+        let remaining = current.endDate.timeIntervalSince(cutoff)
+        let adjustment = max(-remaining, requestedAdjustment)
+        let sectionEndIndex = intervals[(index + 1)...].firstIndex(where: { $0.isAnchored }) ?? intervals.endIndex
+        let followingIndices = Array((index + 1)..<sectionEndIndex)
+        let boundary = sectionEndIndex < intervals.endIndex ? intervals[sectionEndIndex].startDate : dayEnd
+        guard !followingIndices.isEmpty else { return ReflowResult(schedule: self, appliedAdjustment: 0) }
+
+        var durations = followingIndices.map { intervals[$0].duration }
+        let available = max(0, boundary.timeIntervalSince(cutoff.addingTimeInterval(remaining + adjustment)))
+        let overflow = max(0, durations.reduce(0, +) - available)
+        if overflow > 0 {
+            guard let lastFocus = followingIndices.indices.reversed().first(where: { intervals[followingIndices[$0]].kind == .focus }),
+                  durations[lastFocus] >= overflow
+            else { return ReflowResult(schedule: self, appliedAdjustment: 0) }
+            durations[lastFocus] -= overflow
+        }
+
+        var rebuilt = Array(intervals[..<index])
+        rebuilt.append(ScheduledInterval(
+            id: current.id,
+            kind: current.kind,
+            startDate: current.startDate,
+            endDate: cutoff.addingTimeInterval(remaining + adjustment),
+            isAnchored: true,
+            label: current.label,
+            excludedDuration: current.excludedDuration
+        ))
+        var cursor = cutoff.addingTimeInterval(remaining + adjustment)
+        for (position, sourceIndex) in followingIndices.enumerated() where durations[position] > 0 {
+            let source = intervals[sourceIndex]
+            let end = cursor.addingTimeInterval(durations[position])
+            rebuilt.append(ScheduledInterval(
+                id: source.id,
+                kind: source.kind,
+                startDate: cursor,
+                endDate: end,
+                isAnchored: false,
+                label: source.label,
+                excludedDuration: source.excludedDuration
+            ))
+            cursor = end
+        }
+        rebuilt.append(contentsOf: intervals[sectionEndIndex...])
+        return ReflowResult(
+            schedule: GeneratedDailySchedule(rhythmName: rhythmName, dayStart: dayStart, dayEnd: dayEnd, intervals: rebuilt),
+            appliedAdjustment: adjustment
         )
     }
 }

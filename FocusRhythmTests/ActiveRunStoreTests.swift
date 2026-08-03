@@ -9,6 +9,23 @@ final class InMemoryActiveRunStore: ActiveRunStoring {
     func clear() { run = nil }
 }
 
+final class InMemoryRunHistoryStore: RunHistoryStoring {
+    private(set) var allRuns: [CompletedRhythmRun] = []
+    private let calendar = Calendar.current
+
+    func runs(on date: Date) -> [CompletedRhythmRun] {
+        allRuns.filter { calendar.isDate($0.startedAt, inSameDayAs: date) }
+    }
+
+    func record(_ run: CompletedRhythmRun) {
+        if let index = allRuns.firstIndex(where: { $0.id == run.id }) {
+            allRuns[index] = run
+        } else {
+            allRuns.append(run)
+        }
+    }
+}
+
 final class ActiveRunStoreTests: XCTestCase {
     func testActiveRunRoundTripsWithRevisionIntervalIdentityAndProgress() {
         let suiteName = "ActiveRunStoreTests.\(UUID())"
@@ -55,16 +72,19 @@ final class ActiveRunStoreTests: XCTestCase {
         let store = InMemoryActiveRunStore()
         store.run = makeRun(start: start)
         let sessionStore = InMemoryFocusSessionStore()
+        let historyStore = InMemoryRunHistoryStore()
 
         XCTAssertNil(ActiveRunRestorer(
             store: store,
             sessionStore: sessionStore,
+            runHistoryStore: historyStore,
             calendar: utcCalendar,
             now: { start.addingTimeInterval(40 * 60) }
         ).restore())
         XCTAssertEqual(store.run?.status, .completed)
         XCTAssertEqual(store.run?.recordedIntervalIDs.count, 1)
         XCTAssertEqual(sessionStore.allSessions.count, 1)
+        XCTAssertEqual(historyStore.allRuns.first?.outcome, .completedAsPlanned)
     }
 
     func testRestorerDoesNotResumeCompletedRun() {

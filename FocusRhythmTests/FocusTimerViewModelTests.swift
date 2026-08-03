@@ -1033,6 +1033,53 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(activeRunStore.run?.status, .ended)
     }
 
+    func testLongBreakCanBeSkippedWithRemainingTimeReflowed() {
+        let start = Date(timeIntervalSince1970: 48_000)
+        var currentDate = start.addingTimeInterval(22 * 60)
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+
+        XCTAssertEqual(viewModel.phase, .longBreak(name: "Lunch"))
+        viewModel.completeHoldToInterrupt()
+
+        XCTAssertEqual(viewModel.phase, .work)
+        XCTAssertEqual(activeRunStore.run?.adjustments.last?.kind, .skippedBreak)
+        XCTAssertEqual(activeRunStore.run?.adjustments.last?.duration, 3 * 60)
+        currentDate = start.addingTimeInterval(22 * 60)
+    }
+
+    func testLongBreakGetsTenPercentGraceTime() {
+        let start = Date(timeIntervalSince1970: 49_000)
+        var currentDate = start.addingTimeInterval(24 * 60 + 30)
+        let activeRunStore = InMemoryActiveRunStore()
+        let run = makeRun(start: start)
+        activeRunStore.run = run
+        let viewModel = FocusTimerViewModel(
+            run: run,
+            sessionStore: InMemoryFocusSessionStore(),
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: activeRunStore,
+            now: { currentDate }
+        )
+
+        XCTAssertTrue(viewModel.isAddTimeAvailable)
+        viewModel.addTime()
+
+        let revisedLongBreak = activeRunStore.run?.schedule.intervals.first { $0.kind == .longBreak(name: "Lunch") }
+        XCTAssertEqual(revisedLongBreak?.endDate, start.addingTimeInterval(25 * 60 + 30))
+        XCTAssertEqual(activeRunStore.run?.adjustments.last?.kind, .extendedLongBreak)
+        XCTAssertEqual(activeRunStore.run?.adjustments.last?.duration, 30)
+        currentDate = start
+    }
+
     private func makeRun(start: Date) -> ActiveRhythmRun {
         let schedule = GeneratedDailySchedule(
             rhythmName: "Test",
