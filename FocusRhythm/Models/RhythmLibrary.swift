@@ -20,7 +20,31 @@ struct LongBreakWarningTiming: Codable, Equatable {
     let finalReturnLeadTime: TimeInterval
 }
 
+struct RunAdjustment: Codable, Equatable, Identifiable {
+    enum Kind: String, Codable, Equatable {
+        case midWorkBreak
+        case skippedBreak
+        case extendedFocus
+        case extendedLongBreak
+    }
+
+    let id: UUID
+    let kind: Kind
+    let date: Date
+    let duration: TimeInterval
+    let label: String
+
+    init(id: UUID = UUID(), kind: Kind, date: Date, duration: TimeInterval, label: String) {
+        self.id = id
+        self.kind = kind
+        self.date = date
+        self.duration = duration
+        self.label = label
+    }
+}
+
 struct ActiveRhythmRun: Codable, Equatable {
+    let id: UUID
     enum Status: String, Codable {
         case active
         case completed
@@ -37,8 +61,10 @@ struct ActiveRhythmRun: Codable, Equatable {
     var status: Status
     var quickBreakEndsAt: Date?
     var longBreakWarningTiming: LongBreakWarningTiming?
+    var adjustments: [RunAdjustment]
 
     init(
+        id: UUID = UUID(),
         variationID: UUID?,
         rhythm: DailyRhythm,
         schedule: GeneratedDailySchedule,
@@ -48,8 +74,10 @@ struct ActiveRhythmRun: Codable, Equatable {
         extendedIntervalIDs: Set<UUID> = [],
         status: Status = .active,
         quickBreakEndsAt: Date? = nil,
-        longBreakWarningTiming: LongBreakWarningTiming? = nil
+        longBreakWarningTiming: LongBreakWarningTiming? = nil,
+        adjustments: [RunAdjustment] = []
     ) {
+        self.id = id
         self.variationID = variationID
         self.rhythm = rhythm
         self.schedule = schedule
@@ -60,15 +88,17 @@ struct ActiveRhythmRun: Codable, Equatable {
         self.status = status
         self.quickBreakEndsAt = quickBreakEndsAt
         self.longBreakWarningTiming = longBreakWarningTiming
+        self.adjustments = adjustments
     }
 
     private enum CodingKeys: String, CodingKey {
-        case variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, extendedIntervalIDs, status
-        case quickBreakEndsAt, longBreakWarningTiming
+        case id, variationID, rhythm, schedule, startedAt, scheduleRevision, recordedIntervalIDs, extendedIntervalIDs, status
+        case quickBreakEndsAt, longBreakWarningTiming, adjustments
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         variationID = try container.decodeIfPresent(UUID.self, forKey: .variationID)
         rhythm = try container.decode(DailyRhythm.self, forKey: .rhythm)
         schedule = try container.decode(GeneratedDailySchedule.self, forKey: .schedule)
@@ -79,6 +109,7 @@ struct ActiveRhythmRun: Codable, Equatable {
         status = try container.decodeIfPresent(Status.self, forKey: .status) ?? .active
         quickBreakEndsAt = try container.decodeIfPresent(Date.self, forKey: .quickBreakEndsAt)
         longBreakWarningTiming = try container.decodeIfPresent(LongBreakWarningTiming.self, forKey: .longBreakWarningTiming)
+        adjustments = try container.decodeIfPresent([RunAdjustment].self, forKey: .adjustments) ?? []
     }
 }
 

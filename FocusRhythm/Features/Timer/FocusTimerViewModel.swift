@@ -9,6 +9,7 @@ final class FocusTimerViewModel {
     /// Fraction of a phase's original duration that remains when the low-time warning
     /// appears, and the fraction of the bonus chunk used for the second warning.
     static let lowTimeFraction: TimeInterval = 0.2
+    static let longBreakGraceFraction: TimeInterval = 0.1
 
     /// Cap on a break taken mid-work (via the interrupt flow), independent of the
     /// configured end-of-work break length.
@@ -61,6 +62,7 @@ final class FocusTimerViewModel {
     private var currentWorkStartedAt: Date?
     private var activeRun: ActiveRhythmRun?
     private let activeRunStore: ActiveRunStoring?
+    private let runHistoryStore: RunHistoryStoring?
     private var schedule: GeneratedDailySchedule? { activeRun?.schedule }
     private var runtimeDate: Date
     private var currentIntervalIndex: Int?
@@ -83,6 +85,7 @@ final class FocusTimerViewModel {
         self.now = now
         self.activeRun = nil
         self.activeRunStore = nil
+        self.runHistoryStore = nil
         self.runtimeDate = now()
         self.phase = phase
         self.workDuration = resolvedWorkDuration
@@ -96,6 +99,7 @@ final class FocusTimerViewModel {
         sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
         notificationScheduler: NotificationScheduling = UNUserNotificationScheduler(),
         activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
+        runHistoryStore: RunHistoryStoring = UserDefaultsRunHistoryStore(),
         now: @escaping () -> Date = Date.init
     ) {
         self.settingsStore = UserDefaultsTimerSettingsStore()
@@ -104,6 +108,7 @@ final class FocusTimerViewModel {
         self.now = now
         self.activeRun = run
         self.activeRunStore = activeRunStore
+        self.runHistoryStore = runHistoryStore
         self.runtimeDate = now()
         self.phase = .idle
         self.workDuration = run.rhythm.workDuration
@@ -215,7 +220,12 @@ final class FocusTimerViewModel {
     }
 
     private var lowTimeThreshold: TimeInterval {
-        currentPhaseDuration * Self.lowTimeFraction
+        currentPhaseDuration * graceFraction
+    }
+
+    private var graceFraction: TimeInterval {
+        if case .longBreak = phase { return Self.longBreakGraceFraction }
+        return Self.lowTimeFraction
     }
 
     var isLowTimeWarningVisible: Bool {
@@ -227,7 +237,8 @@ final class FocusTimerViewModel {
         guard isLowTimeWarningVisible else { return false }
         guard let schedule, let currentIntervalIndex else { return true }
         let interval = schedule.intervals[currentIntervalIndex]
-        return interval.isFlexible && activeRun?.extendedIntervalIDs.contains(interval.id) != true
+        return (interval.isFlexible || interval.kind.isLongBreak)
+            && activeRun?.extendedIntervalIDs.contains(interval.id) != true
     }
 
     var isBonusLowTimeWarningVisible: Bool {
@@ -309,10 +320,22 @@ final class FocusTimerViewModel {
     /// of whatever time remains. Available only once per phase, once 20% time remains.
     func addTime() {
         guard isAddTimeAvailable else { return }
-        let bonus = currentPhaseDuration * Self.lowTimeFraction
+        let bonus = currentPhaseDuration * graceFraction
         if activeRun != nil {
             guard let intervalID = currentIntervalIndex.flatMap({ schedule?.intervals[$0].id }) else { return }
-            let applied = reflowRemainingSchedule(by: bonus, from: now())
+            let blockLabel = currentBlockName
+            let applied: TimeInterval
+            if let currentIntervalIndex, schedule?.intervals[currentIntervalIndex].kind.isLongBreak == true {
+                applied = reflowAnchoredLongBreak(by: bonus, from: now())
+                if applied > 0 {
+                    activeRun?.adjustments.append(RunAdjustment(kind: .extendedLongBreak, date: now(), duration: applied, label: blockLabel ?? "Long break"))
+                }
+            } else {
+                applied = reflowRemainingSchedule(by: bonus, from: now())
+                if applied > 0 {
+                    activeRun?.adjustments.append(RunAdjustment(kind: .extendedFocus, date: now(), duration: applied, label: blockLabel ?? "Focus"))
+                }
+            }
             guard applied > 0 else { return }
             activeRun?.extendedIntervalIDs.insert(intervalID)
             bonusAdded = applied
@@ -343,7 +366,9 @@ final class FocusTimerViewModel {
             }
         case .shortBreak:
             skipScheduledBreak()
-        case .idle, .longBreak, .completedDay:
+        case .longBreak:
+            skipScheduledBreak()
+        case .idle, .completedDay:
             break
         }
     }
@@ -609,11 +634,20 @@ final class FocusTimerViewModel {
         activeRun?.status = status
         if let activeRun {
             activeRunStore?.save(activeRun)
+            let outcome: CompletedRhythmRun.Outcome = status == .completed ? .completedAsPlanned : .endedEarly
+            runHistoryStore?.record(CompletedRhythmRun(
+                id: activeRun.id,
+                startedAt: activeRun.startedAt,
+                schedule: activeRun.schedule,
+                outcome: outcome,
+                adjustments: activeRun.adjustments
+            ))
         }
     }
 
     private func beginScheduledQuickBreak(duration: TimeInterval) {
         let startedAt = now()
+        let blockLabel = currentBlockName ?? "Focus"
         let appliedDuration = reflowRemainingSchedule(
             by: duration,
             from: startedAt,
@@ -626,6 +660,12 @@ final class FocusTimerViewModel {
         }
         activeRun?.scheduleRevision += 1
         activeRun?.quickBreakEndsAt = startedAt.addingTimeInterval(appliedDuration)
+        activeRun?.adjustments.append(RunAdjustment(
+            kind: .midWorkBreak,
+            date: startedAt,
+            duration: appliedDuration,
+            label: blockLabel
+        ))
         isSelectingBreakDuration = false
         resetAddTime()
         persistActiveRun()
@@ -689,17 +729,40 @@ final class FocusTimerViewModel {
 
     private func skipScheduledBreak() {
         let skippedAt = now()
+        let blockLabel = currentBlockName ?? "Break"
         let isSkippingQuickBreak = activeRun?.quickBreakEndsAt != nil
         let remaining = activeRun?.quickBreakEndsAt?.timeIntervalSince(skippedAt) ?? remainingTime
         activeRun?.quickBreakEndsAt = nil
-        _ = reflowRemainingSchedule(
-            by: -max(0, remaining),
-            from: skippedAt,
-            excludingAdjustmentFromFocus: isSkippingQuickBreak
-        )
+        let skipped: TimeInterval
+        if let currentIntervalIndex, schedule?.intervals[currentIntervalIndex].kind.isLongBreak == true {
+            skipped = -reflowAnchoredLongBreak(by: -max(0, remaining), from: skippedAt)
+        } else {
+            skipped = -reflowRemainingSchedule(
+                by: -max(0, remaining),
+                from: skippedAt,
+                excludingAdjustmentFromFocus: isSkippingQuickBreak
+            )
+        }
+        if skipped > 0 {
+            activeRun?.adjustments.append(RunAdjustment(
+                kind: .skippedBreak,
+                date: skippedAt,
+                duration: skipped,
+                label: blockLabel
+            ))
+        }
         activeRun?.scheduleRevision += 1
         persistActiveRun()
         reconcileSchedule(at: skippedAt)
+    }
+
+    private func reflowAnchoredLongBreak(by duration: TimeInterval, from cutoff: Date) -> TimeInterval {
+        guard let schedule, let currentIntervalIndex else { return 0 }
+        let result = schedule.reflowingAfterAnchoredInterval(at: currentIntervalIndex, from: cutoff, by: duration)
+        guard result.appliedAdjustment != 0 else { return 0 }
+        activeRun?.schedule = result.schedule
+        activeRun?.scheduleRevision += 1
+        return result.appliedAdjustment
     }
 
     private func persistActiveRunIfMateriallyChanged(

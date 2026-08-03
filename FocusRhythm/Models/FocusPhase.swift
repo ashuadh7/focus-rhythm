@@ -16,3 +16,10 @@ enum FocusPhase: Equatable {
         }
     }
 }
+
+extension FocusPhase {
+    var isLongBreak: Bool {
+        if case .longBreak = self { return true }
+        return false
+    }
+}

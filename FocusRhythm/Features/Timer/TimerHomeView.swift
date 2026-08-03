@@ -12,7 +12,7 @@ struct TimerHomeView: View {
     private let onEndDay: () -> Void
 
     private static let workHoldDuration: TimeInterval = 5
-    private static let breakHoldDuration: TimeInterval = 3
+    private static let breakHoldDuration: TimeInterval = 1
     private static let holdTickInterval: TimeInterval = 0.05
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -57,6 +57,14 @@ struct TimerHomeView: View {
             }
             .task {
                 viewModel.requestNotificationPermission()
+                if viewModel.phase == .completedDay {
+                    isShowingSummary = true
+                }
+            }
+            .onChange(of: viewModel.phase) { _, phase in
+                if phase == .completedDay {
+                    isShowingSummary = true
+                }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
@@ -158,6 +166,9 @@ struct TimerHomeView: View {
             if viewModel.phase == .idle, viewModel.dayEnd == nil {
                 Button("Set up today’s rhythm", action: onEndDay)
                     .font(.subheadline.weight(.medium))
+            } else if viewModel.phase == .idle {
+                Button("Return to setup", action: onEndDay)
+                    .font(.subheadline.weight(.medium))
             } else if viewModel.phase.isRunning {
                 Button("End for today") {
                     endCycleReasoning = ""
@@ -211,22 +222,22 @@ struct TimerHomeView: View {
         case .work:
             return "Focus (hold to take a break)"
         case .break:
-            return "Break (hold to skip)"
+            return "Skip break (hold)"
         case .shortBreak:
-            return "Short break"
+            return "Skip short break (hold)"
         case .longBreak:
-            return "Long break"
+            return "Skip long break (hold)"
         case .completedDay:
             return "Complete"
         }
     }
 
     private var currentHoldDuration: TimeInterval {
-        (viewModel.phase == .break || viewModel.phase == .shortBreak) ? Self.breakHoldDuration : Self.workHoldDuration
+        (viewModel.phase == .break || viewModel.phase == .shortBreak || viewModel.phase.isLongBreak) ? Self.breakHoldDuration : Self.workHoldDuration
     }
 
     private func beginHoldIfNeeded() {
-        guard (viewModel.phase == .work || viewModel.phase == .break || viewModel.phase == .shortBreak),
+        guard (viewModel.phase == .work || viewModel.phase == .break || viewModel.phase == .shortBreak || viewModel.phase.isLongBreak),
               holdTimer == nil
         else { return }
         holdProgress = 0
@@ -319,7 +330,7 @@ struct TimerHomeView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Stop") {
                         if viewModel.confirmEndCycle(reasoning: endCycleReasoning) {
-                            onEndDay()
+                            isShowingSummary = true
                         }
                     }
                         .disabled(endCycleWordCount < FocusTimerViewModel.endCycleMinimumWordCount)
