@@ -26,6 +26,14 @@ final class InMemoryRunHistoryStore: RunHistoryStoring {
     }
 }
 
+final class InMemoryStoppedRunStore: StoppedRunStoring {
+    var run: StoppedRhythmRun?
+
+    func load() -> StoppedRhythmRun? { run }
+    func save(_ run: StoppedRhythmRun) { self.run = run }
+    func clear() { run = nil }
+}
+
 final class ActiveRunStoreTests: XCTestCase {
     func testActiveRunRoundTripsWithRevisionIntervalIdentityAndProgress() {
         let suiteName = "ActiveRunStoreTests.\(UUID())"
@@ -51,6 +59,41 @@ final class ActiveRunStoreTests: XCTestCase {
 
         XCTAssertNil(store.load())
         XCTAssertNil(store.load())
+    }
+
+    func testStoppedRunRoundTripsAndCanRebaseARevisedRemainder() {
+        let suiteName = "StoppedRunStoreTests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let source = makeRun(start: Date(timeIntervalSince1970: 2_000))
+        let items = source.schedule.intervals.map {
+            ContinuationPlanItem(
+                sourceIntervalID: $0.id,
+                kind: $0.kind,
+                duration: $0.duration,
+                label: $0.label
+            )
+        }
+        let stopped = StoppedRhythmRun(
+            id: source.id,
+            sourceRun: source,
+            stoppedAt: source.startedAt.addingTimeInterval(60),
+            completedFocusTime: 60,
+            completedFocusIntervals: 0,
+            originalFocusTarget: source.schedule.expectedFocusTime,
+            remainingPlan: items
+        )
+        let store = UserDefaultsStoppedRunStore(defaults: defaults)
+        store.save(stopped)
+
+        XCTAssertEqual(store.load(), stopped)
+
+        let resumedAt = Date(timeIntervalSince1970: 9_000)
+        let focusOnly = Set(items.filter { $0.kind == .focus }.map(\.id))
+        let continued = stopped.continuedRun(using: focusOnly, at: resumedAt)
+        XCTAssertEqual(continued?.schedule.dayStart, resumedAt)
+        XCTAssertEqual(continued?.schedule.expectedFocusTime, source.schedule.expectedFocusTime)
+        XCTAssertTrue(continued?.schedule.intervals.allSatisfy { $0.kind == .focus } == true)
     }
 
     func testRestorerReturnsTodaysUnfinishedRun() {

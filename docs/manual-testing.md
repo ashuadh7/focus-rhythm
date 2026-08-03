@@ -46,19 +46,20 @@ Use **Start test**. Its 20-second **Lunch** break begins after **Throughline**.
    app is reopened.
 5. Let the planned day end pass and confirm the timer stops on the quiet **Day complete**
    surface instead of starting another focus interval.
-6. Repeat with **End for today** and confirm its summary opens with **Ended for today**,
-   then use **Return to setup** rather than seeing an automatically completed day.
+6. Repeat with **End for today** and confirm the unfinished-day review opens rather
+   than seeing an automatically completed day.
 
 ## Daily planned-versus-actual summary
 
 Use **Start test**. The summary opens automatically when the run reaches its planned
-end; after choosing **End for today**, tap **Today**.
+end; after choosing **End for today**, discard the remainder and then start a fresh run
+to inspect the prior terminal summary with **Today**.
 
 1. Confirm the summary shows planned focus time, actual focus time, sessions completed
    out of planned sessions, and water logged.
-2. End during a focus block after some elapsed work. Confirm that work contributes to
-   **Focus actual** but does not increase the completed-session count, and the summary
-   says **Ended for today**.
+2. End during a focus block after some elapsed work, then explicitly discard the
+   remainder. Confirm that work contributes to **Focus actual** but does not increase
+   the completed-session count, and the summary says **Ended for today**.
 3. Let a fresh test run reach its end. Confirm the summary instead says
    **Completed at the planned end** and does not double-count completed focus after
    leaving and reopening the app.
@@ -68,6 +69,23 @@ end; after choosing **End for today**, tap **Today**.
 5. End a run early, return to setup, then start another run that same day. Confirm the
    top totals include both runs and the detail shows **Session 1**, **Session 2**, and
    their activities and adjustments separately.
+
+## Stop, review, and continue an unfinished day
+
+Use **Start test** so the named remainder is easy to verify.
+
+1. Let **cs 349 assignment** finish, then use **End for today** partway through
+   **Flow-sync** and enter the required reasoning.
+2. Confirm **Review unfinished day** shows completed focus, the original target,
+   remaining focus, and the remaining named focus/break blocks in order. The partial
+   **Flow-sync** remainder should be shorter than its original 20 seconds.
+3. Force-quit and relaunch. Confirm the review returns instead of showing a completed
+   day or silently restarting the timer.
+4. Turn off one later named block and continue. Confirm the timer begins with the
+   partial **Flow-sync** remainder and follows only the selected plan without creating
+   another record for **cs 349 assignment**.
+5. Repeat the stop flow and choose **Discard remaining plan**. Relaunch and confirm the
+   discarded plan is no longer offered.
 
 ## Break controls
 
