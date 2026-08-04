@@ -1,6 +1,6 @@
 # Structure
 
-Current file map for the native iOS app after the v0.1 continuous-loop phase.
+Current file map for the native iOS app after the v0.2 finite-daily-rhythm phase.
 
 ## App
 
@@ -11,19 +11,21 @@ Current file map for the native iOS app after the v0.1 continuous-loop phase.
 
 - `FocusRhythm/Features/Timer/` — timer-first home surface and the work/break runtime state model, including automatic transitions, bounded interruptions, extensions, end-cycle confirmation, and foreground catch-up.
 - `FocusRhythm/Features/BreakActivities/` — full-screen water prompt and one-tap/custom water logging shown during breaks.
-- `FocusRhythm/Features/DailySummary/` — quiet daily totals for completed focus time, cycle count, and water.
+- `FocusRhythm/Features/DailySummary/` — quiet daily totals for completed focus time, cycle count, and water, plus planned-versus-actual focus for a finished day.
+- `FocusRhythm/Features/RhythmSetup/` — morning rhythm selection, today-only adjustment, and the generated-schedule preview.
 
 ## Shared
 
-- `FocusRhythm/Models/` — cross-feature domain models (`FocusPhase`, `WaterLogEntry`, `FocusSession`).
-- `FocusRhythm/Persistence/` — UserDefaults-backed timer settings, water logs, focus sessions, and local notification scheduling.
+- `FocusRhythm/Models/` — cross-feature domain models (`FocusPhase`, `WaterLogEntry`, `FocusSession`), the `DailyRhythm` definition with its work sections and anchored long breaks, the `DailyScheduleGenerator` that turns one into dated intervals, and the saved `RhythmLibrary`.
+- `FocusRhythm/Persistence/` — UserDefaults-backed timer settings, water logs, focus sessions, the saved rhythm library, the active daily run, and local notification scheduling.
 
-## Planned v0.2 additions
+## Planned v0.3 additions
 
-- A daily-rhythm model describing flexible work sections and fixed long-break/day-end anchors.
-- A schedule generator producing dated work, short-break, and long-break intervals.
-- Persistence for the generated day and active run, not only completed sessions.
-- Morning setup/preview and a runtime `Now / Next` presentation.
+- A plan model of landmarks, dependency tasks, and estimates, holding no clock times.
+- Derived landmark pressure comparing remaining estimates against focus capacity.
+- A planning surface and a scrollable multi-day landmark graph.
+- A runtime task queue that binds one task to a focus interval as it begins.
+- A nested rapid-fire task-clearer session inside a single slot.
 
 ## Tests
 

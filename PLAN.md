@@ -22,7 +22,7 @@ The first functional batch proved the basic work/break rhythm:
 The app is now a functional continuous Pomodoro-style loop. The next phase is not
 "more Pomodoro features"; it is turning that loop into a finite daily rhythm.
 
-## Active direction: v0.2 — Finite daily rhythm
+## Completed: v0.2 — Finite daily rhythm
 
 ### Outcome
 
@@ -31,29 +31,29 @@ carry the day through short work/break cycles, long breaks, and a definite endin
 
 ### Scope
 
-- [ ] Save one reusable default daily rhythm:
+- [x] Save one reusable default daily rhythm:
   - start and end time
   - work and short-break durations
   - repeating work sections
   - anchored long breaks
-- [ ] Generate a dated timeline of work, short-break, and long-break intervals
-- [ ] Preview start/end, expected focus time, session count, and long breaks before starting
-- [ ] Support "start as planned," "start now," and a today-only adjustment
-- [ ] Drive the timer from the generated timeline instead of an endless two-phase loop
-- [ ] Show a quiet `Now / Next` runtime view
-- [ ] Persist and restore the active daily run after full app termination
-- [ ] Schedule known transition notifications in advance and reschedule after changes
-- [ ] Preserve the existing soft landings within the daily timeline:
+- [x] Generate a dated timeline of work, short-break, and long-break intervals
+- [x] Preview start/end, expected focus time, session count, and long breaks before starting
+- [x] Support "start as planned," "start now," and a today-only adjustment
+- [x] Drive the timer from the generated timeline instead of an endless two-phase loop
+- [x] Show a quiet `Now / Next` runtime view
+- [x] Persist and restore the active daily run after full app termination
+- [x] Schedule known transition notifications in advance and reschedule after changes
+- [x] Preserve the existing soft landings within the daily timeline:
   - extensions and inserted short breaks shift later flexible intervals
   - long breaks and day end remain fixed anchors
   - overflow trims or drops the final incomplete focus interval rather than eroding every break
-- [ ] Give long breaks a soft exit ramp:
+- [x] Give long breaks a soft exit ramp:
   - main break
   - five-minute wrap-up warning
   - two-minute final return warning
-- [ ] Stop automatically at the configured day end and show planned versus actual focus
+- [x] Stop automatically at the configured day end and show planned versus actual focus
 
-### Explicitly out of scope for v0.2
+### Was explicitly out of scope for v0.2
 
 - Break-activity library or automatic chore placement
 - Work task management
@@ -62,7 +62,7 @@ carry the day through short work/break cycles, long breaks, and a definite endin
 - Live Activity / Dynamic Island
 - Sophisticated schedule optimization
 
-### Recommended issue order
+### Issue order as delivered
 
 1. Model and validate a reusable daily rhythm and generated intervals.
 2. Add morning setup and a generated schedule preview.
@@ -72,8 +72,90 @@ carry the day through short work/break cycles, long breaks, and a definite endin
 6. Integrate existing extensions/interruption controls with fixed anchors.
 7. Add long-break exit warnings and intentional day completion.
 8. Extend the daily summary with planned-versus-actual focus.
+9. Review and continue an intentionally stopped unfinished day.
 
-## Next: v0.3 — Recurring break routines
+## Active direction: v0.3 — Landmark planning layer
+
+### Outcome
+
+Plan the next 5–10 days once, around landmarks and their dependencies. Then let the
+running day choose what to work on next, so that focus time requires no decisions.
+
+### The separation this phase rests on
+
+- **Rhythm** is time: slots, anchored breaks, day end. Built in v0.2, unchanged here.
+- **Plan** is work: landmarks, dependencies, estimates, ordering. It contains no clock times.
+- **Binding** happens at runtime: a task is attached to a focus interval when that interval
+  begins, never in advance.
+
+Tasks are never scheduled into slots ahead of time. Estimate error is absorbed by the
+queue, not by the schedule — that is what lets a rough estimate survive a real day.
+
+### Scope
+
+Plan model
+
+- [ ] Landmark: name, date and time, hue, kind (meeting or deadline)
+- [ ] Dependency task: parent landmark, estimate, remaining estimate, order, done state
+- [ ] Floating task: no landmark, but a soft by-date so it still appears as a real target
+- [ ] Minimum useful chunk per task, defaulting to "needs a full slot"
+- [ ] Versioned, serializable plan document so later import needs no migration
+- [ ] Landmark pressure: remaining estimate before a landmark versus focus capacity until it
+
+Planning surface
+
+- [ ] Create and edit landmarks and their dependencies
+- [ ] Scrollable multi-day landmark graph — landmark in a dark shade, its dependencies in
+      lighter shades of the same hue, completed dependencies struck through
+- [ ] Replan: close the current horizon and open the next one
+- [ ] Morning slate — a derived projection of today's likely tasks, explicitly not a commitment
+- [ ] One optional stated day target, checked at day end
+
+Runtime binding
+
+- [ ] Selection rule: highest-priority unfinished task whose minimum chunk fits the time
+      remaining; when nothing fits, start the break early rather than invent work
+- [ ] Focus screen shows only four things: time left, current target, its landmark, task progress
+- [ ] Break decisions: done, still going, or add time — remaining estimates are revised here
+- [ ] One-tap "not this one" override of the next pick, available in breaks only
+- [ ] Marking done mid-interval pulls the next task in without moving the clock
+- [ ] Long breaks show the wider view: remaining slate and landmark pressure
+- [ ] Day end reconciles plan against actual and shows which landmarks moved
+
+Task-clearer
+
+- [ ] Nested rapid-fire schedule inside one slot: per-item 3/5/10-minute intervals, no breaks between
+- [ ] Per item: done, +5, or push to the back; the session end stays fixed, so overrun eats the tail
+- [ ] A standing slot in the rhythm rather than an on-demand mode
+
+### Explicitly out of scope for v0.3
+
+- Unstructured task dump and automatic structuring — that is v0.5 import
+- Bin-packing or optimizing which combination of tasks best fills a remainder
+- A separate filler-task pool; the task-clearer replaces it
+- Recurring break routines, now v0.4
+- Ranking, scoring, or balancing between work and break tasks
+- A general to-do system — tasks exist to serve landmarks
+
+### Open decision
+
+Calendar integration direction, deferred and blocking nothing above: EventKit (read
+meetings in as landmark candidates, write focus and break sessions to a dedicated
+calendar) versus an in-app history view only.
+
+### Recommended issue order
+
+1. Plan model, validation, and persistence.
+2. Landmark pressure and capacity derivation.
+3. Planning surface for landmarks and dependencies.
+4. Scrollable landmark graph.
+5. Runtime task queue and the selection rule.
+6. Focus and break target surfaces.
+7. Morning slate, stated day target, and replan.
+8. Task-clearer nested session.
+9. Day-end reconciliation of plan versus actual.
+
+## Next: v0.4 — Recurring break routines
 
 Add a small reusable activity library so routine chores and healthy habits are
 configured once, then assigned automatically to compatible breaks.
@@ -97,17 +179,12 @@ Do not add randomization, ranking, mood selection, or drag-and-drop placement in
 this phase. Water logging should eventually become one activity in this general
 system rather than a permanent special case.
 
-## Later: v0.4 — Work targets
+A break routine and a task-clearer item share a shape: a small named unit with an
+approximate duration and a done state. Build the second on the first rather than
+twice, differing only in where each is eligible to appear.
 
-Define this phase only after the work-side requirements are understood. The current
-direction is deliberately narrower than a task manager:
-
-- Give each large work section one intended outcome
-- Optionally show one current target during a focus interval
-- Between intervals, continue, select the next target, or mark it complete
-
-Avoid importing or duplicating a full to-do system until the daily rhythm and
-break-routine loop have proved useful in real use.
+Work targets, previously planned as v0.4, are absorbed into v0.3 — a target is now a
+dependency of a landmark rather than a free-standing intention.
 
 ## Later: Scheduled launch ritual
 
@@ -133,8 +210,9 @@ or add punitive missed-alarm streaks or unlimited snoozing.
 
 **v0.5 — JSON import/export**
 
-- Use a versioned representation of the now-stable daily rhythm and generated schedule
-- Validate and preview imported schedules before accepting them
+- Use a versioned representation of the now-stable daily rhythm, generated schedule, and plan
+- Validate and preview imported schedules and plans before accepting them
+- Accept an unstructured task dump structured externally into landmarks and dependencies
 - Allow external services such as ChatGPT or Claude to prepare a schedule without embedding a paid API
 
 **v0.6 — Ambient system surfaces**
@@ -155,5 +233,10 @@ or add punitive missed-alarm streaks or unlimited snoozing.
 - Configure recurring constraints once; generate repetition automatically.
 - A plan must survive lateness and interruption without demanding a new planning session.
 - Fixed anchors should be trustworthy. Flexible intervals may move or disappear.
+- Focus shows one thing. Every decision belongs to a break — a choice offered mid-focus
+  is a defection opportunity.
+- Match spare time against how small a piece of a task is still worth doing, not against
+  the size of the task.
+- Work that is always correctly ranked last needs a reserved slot, not a higher rank.
 - Watch what happens on day 4 and day 14 — that is where personal trackers usually fail.
 - If a feature makes the app broadly marketable but does not make the daily rhythm calmer, park it.
