@@ -1,0 +1,21 @@
+v0.3 execution order — move the * to the last completed issue
+
+*   none yet
+    56  Scaled clock for running a day faster than real time
+    39  Model landmarks, dependency tasks, and floating tasks
+    40  Persist the plan horizon and support replanning
+    57  Date travel and seeded plan fixtures
+    41  Derive landmark pressure from remaining estimates and capacity
+    43  Create and edit landmarks and their dependencies
+    44  Scrollable multi-day landmark graph
+    47  Runtime task queue and the selection rule
+    48  Show the current target and its landmark during focus
+    49  Break-time task decisions and the next-pick override
+    45  Morning slate and one optional stated day target
+    52  Generate a nested rapid-fire schedule inside one slot
+    53  Rapid-fire runtime with per-item bounds
+    54  Place a standing task-clearer slot in the rhythm
+    50  Long-break wider view and day-end plan reconciliation
+    58  Extend manual test scenarios for the planning layer
+
+umbrellas, close when their children close: 38 42 46 51 55
