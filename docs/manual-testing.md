@@ -5,6 +5,23 @@ Record which scenario was used and any deviations in the pull request verificati
 checklist. Manual scenarios are intentionally short and deterministic; they are not
 production rhythm templates.
 
+## Choosing a mechanism
+
+Three ways to make a scenario observable. Pick the cheapest one that can reach the
+behavior under review.
+
+| Mechanism | What it is | Use it for | Cannot reach |
+| --- | --- | --- | --- |
+| **Start test** | A rhythm built from 20-second blocks | Controls, transitions, labels, persistence across a handful of blocks | Anything depending on realistic ratios — warning thresholds, extension caps, percentage-based behavior |
+| **Scaled clock** | A production-shaped rhythm run at 10×–120× | A full day's arc, day end, planned-versus-actual, long-break exit ramp at real proportions | Anything spanning more than one day |
+| **Date travel + fixtures** | Jump the app's notion of today; load a plan in a known state | Landmark pressure, replan carry-forward, a 10-day horizon, day 4 and day 14 behavior | Anything about pacing or feel |
+
+Two standing cautions. Under a scaled clock, local notifications still fire on real
+wall-clock time, so notification reconciliation must be verified at 1× or through the
+existing 20-second scenario. Under date travel, previously written sessions and water
+logs keep their original real dates, so summaries read against the travelled date will
+look empty unless the fixture seeds them too.
+
 ## Named soft-landings
 
 Use this scenario for timer transitions, extensions, inserted breaks, skipped breaks,
