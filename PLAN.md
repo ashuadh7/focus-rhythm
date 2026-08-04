@@ -122,6 +122,20 @@ Runtime binding
 - [ ] Long breaks show the wider view: remaining slate and landmark pressure
 - [ ] Day end reconciles plan against actual and shows which landmarks moved
 
+Test tooling
+
+The existing 20-second **Start test** scenario shortens durations, which verifies
+controls and transitions but cannot reach anything that takes a day or a horizon.
+v0.3 needs two more mechanisms, built before the features that depend on them.
+
+- [ ] Scaled clock: run a realistic rhythm at 10×–120× so a full day's arc takes minutes
+      while durations, ratios, and warning thresholds stay production-shaped
+- [ ] Date travel and seeded plan fixtures: jump the app's notion of today forward by
+      days and load a plan in a known state, since a 10-day horizon cannot be run through
+      even compressed
+- [ ] Both gated to debug builds and reachable from one debug surface
+- [ ] Manual scenarios in `docs/manual-testing.md` extended per issue, as now
+
 Task-clearer
 
 - [ ] Nested rapid-fire schedule inside one slot: per-item 3/5/10-minute intervals, no breaks between
@@ -145,15 +159,17 @@ calendar) versus an in-app history view only.
 
 ### Recommended issue order
 
-1. Plan model, validation, and persistence.
-2. Landmark pressure and capacity derivation.
-3. Planning surface for landmarks and dependencies.
-4. Scrollable landmark graph.
-5. Runtime task queue and the selection rule.
-6. Focus and break target surfaces.
-7. Morning slate, stated day target, and replan.
-8. Task-clearer nested session.
-9. Day-end reconciliation of plan versus actual.
+1. Scaled clock, before anything whose behavior takes a day to observe.
+2. Plan model, validation, and persistence.
+3. Date travel and seeded plan fixtures, once there is a plan to seed.
+4. Landmark pressure and capacity derivation.
+5. Planning surface for landmarks and dependencies.
+6. Scrollable landmark graph.
+7. Runtime task queue and the selection rule.
+8. Focus and break target surfaces.
+9. Morning slate, stated day target, and replan.
+10. Task-clearer nested session.
+11. Day-end reconciliation of plan versus actual.
 
 ## Next: v0.4 — Recurring break routines
 
