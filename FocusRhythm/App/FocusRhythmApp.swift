@@ -10,6 +10,7 @@ struct FocusRhythmApp: App {
 }
 
 private struct AppEntryView: View {
+    @State private var clock: AppClock
     @State private var activeRun: ActiveRhythmRun?
     @State private var stoppedRun: StoppedRhythmRun?
 
@@ -18,14 +19,30 @@ private struct AppEntryView: View {
     private let runHistoryStore = UserDefaultsRunHistoryStore()
 
     init() {
-        _activeRun = State(initialValue: ActiveRunRestorer().restore())
+        let clock = AppClock()
+        _clock = State(initialValue: clock)
+        _activeRun = State(initialValue: ActiveRunRestorer(now: { clock.now }).restore())
         _stoppedRun = State(initialValue: UserDefaultsStoppedRunStore().load())
     }
 
+    @ViewBuilder
     var body: some View {
+#if DEBUG
+        content
+            .safeAreaInset(edge: .bottom) {
+                debugClockControls
+            }
+#else
+        content
+#endif
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if let activeRun {
             TimerHomeView(
                 run: activeRun,
+                clock: clock,
                 onEndDay: {
                     self.activeRun = nil
                     self.stoppedRun = stoppedRunStore.load()
@@ -38,7 +55,7 @@ private struct AppEntryView: View {
                 onDiscard: discardRun
             )
         } else {
-            RhythmSetupView { run in
+            RhythmSetupView(clock: clock) { run in
                 activeRun = run
             }
         }
@@ -46,7 +63,7 @@ private struct AppEntryView: View {
 
     private func continueRun(_ itemIDs: Set<UUID>) {
         guard let stoppedRun,
-              let run = stoppedRun.continuedRun(using: itemIDs, at: Date())
+              let run = stoppedRun.continuedRun(using: itemIDs, at: clock.now)
         else { return }
         activeRunStore.save(run)
         stoppedRunStore.clear()
@@ -69,6 +86,27 @@ private struct AppEntryView: View {
         stoppedRunStore.clear()
         stoppedRun = nil
     }
+
+#if DEBUG
+    private var debugClockControls: some View {
+        HStack(spacing: 12) {
+            Text("Clock")
+                .font(.caption.weight(.semibold))
+            Picker("Clock rate", selection: Binding(
+                get: { clock.rate },
+                set: { clock.setRate($0) }
+            )) {
+                ForEach(AppClock.availableRates, id: \.self) { rate in
+                    Text("\(Int(rate))×").tag(rate)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+#endif
 }
 
 private struct StoppedRunReviewView: View {

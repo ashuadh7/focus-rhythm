@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct DailySummaryView: View {
-    @State private var viewModel = DailySummaryViewModel()
+    @State private var viewModel: DailySummaryViewModel
     @Environment(\.dismiss) private var dismiss
+
+    init(now: @escaping () -> Date = Date.init) {
+        _viewModel = State(initialValue: DailySummaryViewModel(now: now))
+    }
 
     var body: some View {
         NavigationStack {

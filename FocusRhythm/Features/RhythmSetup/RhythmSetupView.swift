@@ -1,10 +1,15 @@
 import SwiftUI
 
 struct RhythmSetupView: View {
-    @State private var viewModel = RhythmSetupViewModel()
+    @State private var viewModel: RhythmSetupViewModel
     @State private var isEditing = false
     @State private var startedRun: ActiveRhythmRun?
     let onStart: (ActiveRhythmRun) -> Void
+
+    init(clock: AppClock = AppClock(), onStart: @escaping (ActiveRhythmRun) -> Void) {
+        _viewModel = State(initialValue: RhythmSetupViewModel(now: { clock.now }))
+        self.onStart = onStart
+    }
 
     var body: some View {
         NavigationStack {
