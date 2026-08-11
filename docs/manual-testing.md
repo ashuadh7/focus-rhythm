@@ -22,6 +22,30 @@ existing 20-second scenario. Under date travel, previously written sessions and 
 logs keep their original real dates, so summaries read against the travelled date will
 look empty unless the fixture seeds them too.
 
+When backgrounding at a scaled rate, the virtual clock catches up from the real time
+spent away multiplied by the selected rate. iOS still schedules and delivers local
+notifications against real wall-clock dates, so notification timing during that catch-up
+is intentionally not representative; return to 1× for notification checks.
+
+## Scaled production day
+
+Use this scenario for realistic full-day proportions, long-break warning thresholds,
+and planned-versus-actual summary totals.
+
+1. In a debug build, choose a production rhythm and select **60×** in the persistent
+   clock control before tapping **Start now**.
+2. Confirm **Running at 60×** remains visible throughout the run.
+3. Confirm a 50-minute focus interval completes in about 50 real seconds while the
+   summary records 50 minutes of actual focus.
+4. During a production long break, confirm wrap-up and final-return warnings appear at
+   five and two virtual minutes remaining.
+5. Background briefly, return, and confirm the timer catches up by approximately 60
+   virtual seconds per real second spent away. Ignore local-notification delivery in
+   this step; verify notifications separately at 1×.
+6. Let the planned day finish in accelerated time. Confirm the summary's planned and
+   actual focus totals describe the production day rather than the real minutes spent.
+7. Return the clock to **1×** before normal use or notification testing.
+
 ## Named soft-landings
 
 Use this scenario for timer transitions, extensions, inserted breaks, skipped breaks,

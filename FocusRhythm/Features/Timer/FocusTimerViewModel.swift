@@ -302,6 +302,24 @@ final class FocusTimerViewModel {
         syncPhaseEndTime()
     }
 
+    /// Reconciles the countdown against the injected clock. The UI calls this on a
+    /// lightweight real-time cadence so accelerated clocks advance by their full scaled
+    /// elapsed time without requiring an equally accelerated timer publisher.
+    func refreshForClockTick() {
+        if schedule != nil {
+            reconcileSchedule(at: now())
+            return
+        }
+        guard phase.isRunning, !isSelectingBreakDuration, let phaseEndTime else { return }
+        let currentDate = now()
+        let secondsRemaining = phaseEndTime.timeIntervalSince(currentDate)
+        if secondsRemaining > 0 {
+            remainingTime = secondsRemaining
+        } else {
+            tick(remainingTime + abs(secondsRemaining))
+        }
+    }
+
     /// Recomputes `remainingTime` from wall-clock time, catching up through any phase
     /// transitions that should have happened while the app was backgrounded/suspended.
     /// Call on scene-phase becoming active.

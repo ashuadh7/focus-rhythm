@@ -1,7 +1,6 @@
 v0.3 execution order — move the * to the last completed issue
 
-*   none yet
-    56  Scaled clock for running a day faster than real time
+*   56  Scaled clock for running a day faster than real time
     39  Model landmarks, dependency tasks, and floating tasks
     40  Persist the plan horizon and support replanning
     57  Date travel and seeded plan fixtures

@@ -36,6 +36,7 @@
 		0F10001B0000000000000001 /* RhythmSetupViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */; };
 		0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001E0000000000000001 /* ActiveRunStore.swift */; };
 		0F10001D0000000000000001 /* ActiveRunStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001F0000000000000001 /* ActiveRunStoreTests.swift */; };
+		0F10001E0000000000000001 /* AppClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000200000000000000001 /* AppClock.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		0F20001D0000000000000001 /* RhythmSetupViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhythmSetupViewModelTests.swift; sourceTree = "<group>"; };
 		0F20001E0000000000000001 /* ActiveRunStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRunStore.swift; sourceTree = "<group>"; };
 		0F20001F0000000000000001 /* ActiveRunStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRunStoreTests.swift; sourceTree = "<group>"; };
+		0F2000200000000000000001 /* AppClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClock.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,6 +172,7 @@
 		0F7000080000000000000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				0F2000200000000000000001 /* AppClock.swift */,
 				0F2000040000000000000001 /* FocusPhase.swift */,
 				0F2000090000000000000001 /* WaterLogEntry.swift */,
 				0F20000E0000000000000001 /* FocusSession.swift */,
@@ -333,6 +336,7 @@
 				0F1000180000000000000001 /* RhythmSetupViewModel.swift in Sources */,
 				0F1000190000000000000001 /* RhythmSetupView.swift in Sources */,
 				0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */,
+				0F10001E0000000000000001 /* AppClock.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

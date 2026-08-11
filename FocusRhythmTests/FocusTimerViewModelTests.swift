@@ -36,6 +36,42 @@ final class InMemoryNotificationScheduler: NotificationScheduling {
 }
 
 final class FocusTimerViewModelTests: XCTestCase {
+#if DEBUG
+    func testScaledClockAdvancesVirtualTimeAndKeepsContinuityWhenRateChanges() {
+        var wallDate = Date(timeIntervalSince1970: 1_000)
+        let clock = AppClock(wallNow: { wallDate })
+
+        clock.setRate(60)
+        wallDate = wallDate.addingTimeInterval(5)
+        XCTAssertEqual(clock.now, Date(timeIntervalSince1970: 1_300))
+
+        clock.setRate(10)
+        XCTAssertEqual(clock.now, Date(timeIntervalSince1970: 1_300))
+        wallDate = wallDate.addingTimeInterval(2)
+        XCTAssertEqual(clock.now, Date(timeIntervalSince1970: 1_320))
+    }
+#endif
+
+    func testClockRefreshUsesInjectedNowToCompleteScheduledFocusAtScaledElapsedTime() {
+        let start = Date(timeIntervalSince1970: 2_000)
+        var currentDate = start
+        let sessions = InMemoryFocusSessionStore()
+        let viewModel = FocusTimerViewModel(
+            run: makeRun(start: start),
+            sessionStore: sessions,
+            notificationScheduler: InMemoryNotificationScheduler(),
+            activeRunStore: InMemoryActiveRunStore(),
+            now: { currentDate }
+        )
+
+        currentDate = start.addingTimeInterval(10 * 60)
+        viewModel.refreshForClockTick()
+
+        XCTAssertEqual(viewModel.phase, .shortBreak)
+        XCTAssertEqual(sessions.allSessions.count, 1)
+        XCTAssertEqual(sessions.allSessions.first?.duration, 10 * 60)
+    }
+
     func testDefaultDurationsMatchMVPDefaults() {
         let viewModel = FocusTimerViewModel(settingsStore: InMemoryTimerSettingsStore(), sessionStore: InMemoryFocusSessionStore())
 

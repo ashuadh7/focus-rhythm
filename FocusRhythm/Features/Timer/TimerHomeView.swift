@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TimerHomeView: View {
     @State private var viewModel: FocusTimerViewModel
-    @State private var waterLoggingViewModel = WaterLoggingViewModel()
+    @State private var waterLoggingViewModel: WaterLoggingViewModel
     @State private var isShowingSummary = false
     @State private var holdProgress: CGFloat = 0
     @State private var holdTimer: Timer?
@@ -10,38 +10,50 @@ struct TimerHomeView: View {
     @State private var endCycleReasoning = ""
     @Environment(\.scenePhase) private var scenePhase
     private let onEndDay: () -> Void
+    private let clock: AppClock
 
     private static let workHoldDuration: TimeInterval = 5
     private static let breakHoldDuration: TimeInterval = 1
     private static let holdTickInterval: TimeInterval = 0.05
 
-    private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let ticker = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
 
     init(
         workDuration: TimeInterval? = nil,
         breakDuration: TimeInterval? = nil,
+        clock: AppClock = AppClock(),
         onEndDay: @escaping () -> Void = {}
     ) {
         _viewModel = State(initialValue: FocusTimerViewModel(
             workDuration: workDuration,
-            breakDuration: breakDuration
+            breakDuration: breakDuration,
+            now: { clock.now }
         ))
+        _waterLoggingViewModel = State(initialValue: WaterLoggingViewModel(now: { clock.now }))
+        self.clock = clock
         self.onEndDay = onEndDay
     }
 
     init(
         run: ActiveRhythmRun,
         activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
+        clock: AppClock = AppClock(),
         onEndDay: @escaping () -> Void = {}
     ) {
-        _viewModel = State(initialValue: FocusTimerViewModel(run: run, activeRunStore: activeRunStore))
+        _viewModel = State(initialValue: FocusTimerViewModel(
+            run: run,
+            activeRunStore: activeRunStore,
+            now: { clock.now }
+        ))
+        _waterLoggingViewModel = State(initialValue: WaterLoggingViewModel(now: { clock.now }))
+        self.clock = clock
         self.onEndDay = onEndDay
     }
 
     var body: some View {
         content
             .sheet(isPresented: $isShowingSummary) {
-                DailySummaryView()
+                DailySummaryView(now: { clock.now })
             }
             .sheet(isPresented: Binding(
                 get: { viewModel.isSelectingBreakDuration },
@@ -82,6 +94,15 @@ struct TimerHomeView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 32)
+
+#if DEBUG
+            if clock.rate != 1 {
+                Text("Running at \(Int(clock.rate))×")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .accessibilityLabel("Clock speed \(Int(clock.rate)) times")
+            }
+#endif
 
             Spacer()
 
@@ -183,7 +204,7 @@ struct TimerHomeView: View {
         .padding()
         .background(Color(.systemBackground))
         .onReceive(ticker) { _ in
-            viewModel.tick()
+            viewModel.refreshForClockTick()
         }
     }
 
