@@ -99,6 +99,28 @@ final class RhythmSetupViewModelTests: XCTestCase {
         XCTAssertEqual(store.library.activeRun?.rhythm.workDuration, 25 * 60)
     }
 
+    func testEditorRunOnlyChoiceCreatesOneTimeRhythmWithoutSaving() {
+        let context = makeContext()
+        let variation = RhythmVariation(rhythm: makeRhythm(name: "Saved"))
+        let store = MemoryRhythmLibraryStore(RhythmLibrary(
+            variations: [variation],
+            defaultVariationID: nil,
+            plannedSelections: [],
+            activeRun: nil
+        ))
+        let viewModel = makeViewModel(store: store, context: context)
+
+        viewModel.beginEditingSelected()
+        viewModel.draft.workDuration = 25 * 60
+
+        XCTAssertTrue(viewModel.useEditingDraftForThisRun())
+        XCTAssertTrue(viewModel.isUsingOneTimeRhythm)
+        XCTAssertNil(viewModel.selectedVariationID)
+        XCTAssertEqual(store.library.variations[0], variation)
+        XCTAssertEqual(viewModel.startNow()?.variationID, nil)
+        XCTAssertEqual(store.library.activeRun?.rhythm.workDuration, 25 * 60)
+    }
+
     func testSavingUpdatesOnlySelectedVariation() {
         let context = makeContext()
         let first = RhythmVariation(rhythm: makeRhythm(name: "First"))
@@ -110,14 +132,15 @@ final class RhythmSetupViewModelTests: XCTestCase {
             activeRun: nil
         ))
         let viewModel = makeViewModel(store: store, context: context)
+        viewModel.beginEditingSelected()
         viewModel.draft.name = "Updated"
-        viewModel.saveDraftToVariation()
+        XCTAssertTrue(viewModel.saveEditingDraft())
 
         XCTAssertEqual(store.library.variations[0].rhythm.name, "Updated")
         XCTAssertEqual(store.library.variations[1].rhythm.name, "Second")
     }
 
-    func testStartNowContainsNoElapsedIntervalsAndKeepsFutureAnchorAndDayEnd() {
+    func testStartNowContainsNoElapsedIntervalsAndUsesCadenceUntilDayEnd() {
         let context = makeContext(hour: 10, minute: 15)
         let rhythm = DailyRhythm(
             name: "Day",
@@ -145,7 +168,7 @@ final class RhythmSetupViewModelTests: XCTestCase {
 
         XCTAssertNotNil(run)
         XCTAssertTrue(run!.schedule.intervals.allSatisfy { $0.startDate >= context.now })
-        XCTAssertEqual(run!.schedule.longBreakDetails.map(\.name), ["Lunch"])
+        XCTAssertEqual(run!.schedule.longBreakDetails.map(\.name), ["Long break"])
         XCTAssertEqual(context.calendar.component(.hour, from: run!.schedule.dayEnd), 17)
     }
 
@@ -170,32 +193,56 @@ final class RhythmSetupViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.runPreview?.dayEnd, run?.schedule.dayEnd)
     }
 
-    func testStandardCascadeStartsAtDayStartAndRepeatsFourHoursWithOneHourBreaks() {
+    func testCancellingNewVariationLeavesLibraryAndSelectionUnchanged() {
         let context = makeContext()
-        let store = MemoryRhythmLibraryStore(.empty)
+        let original = RhythmVariation(rhythm: makeRhythm(name: "Original"))
+        let store = MemoryRhythmLibraryStore(RhythmLibrary(
+            variations: [original],
+            defaultVariationID: nil,
+            plannedSelections: [],
+            activeRun: nil
+        ))
         let viewModel = makeViewModel(store: store, context: context)
-        viewModel.draft.dayStart = TimeOfDay(hour: 7, minute: 30)
-        viewModel.draft.dayEnd = TimeOfDay(hour: 17, minute: 30)
 
-        viewModel.applyStandardCascade()
+        viewModel.beginCreatingVariation()
+        viewModel.draft.name = "Discard me"
 
-        XCTAssertEqual(viewModel.draft.workSections, [
-            WorkSection(
-                startTime: TimeOfDay(hour: 7, minute: 30),
-                endTime: TimeOfDay(hour: 11, minute: 30)
-            ),
-            WorkSection(
-                startTime: TimeOfDay(hour: 12, minute: 30),
-                endTime: TimeOfDay(hour: 17, minute: 30)
-            )
-        ])
-        XCTAssertEqual(viewModel.draft.longBreaks, [
-            AnchoredLongBreak(
-                name: "Long break 1",
-                startTime: TimeOfDay(hour: 11, minute: 30),
-                endTime: TimeOfDay(hour: 12, minute: 30)
-            )
-        ])
+        XCTAssertTrue(viewModel.isCreatingVariation)
+        XCTAssertEqual(viewModel.variations.count, 1)
+
+        viewModel.cancelDraftEditing()
+
+        XCTAssertEqual(viewModel.selectedVariationID, original.id)
+        XCTAssertEqual(viewModel.draft.name, "Original")
+        XCTAssertEqual(store.library.variations, [original])
+    }
+
+    func testSavingNewVariationKeepsExistingVariationIndependent() {
+        let context = makeContext()
+        let original = RhythmVariation(rhythm: makeRhythm(name: "Original"))
+        let store = MemoryRhythmLibraryStore(RhythmLibrary(
+            variations: [original],
+            defaultVariationID: nil,
+            plannedSelections: [],
+            activeRun: nil
+        ))
+        let viewModel = makeViewModel(store: store, context: context)
+
+        viewModel.beginCreatingVariation()
+        viewModel.draft.name = "Writing"
+        viewModel.draft.workDuration = 25 * 60
+        viewModel.draft.shortBreakDuration = 5 * 60
+        viewModel.draft.longBreakDuration = 30 * 60
+        viewModel.draft.sessionsBeforeLongBreak = 3
+
+        XCTAssertTrue(viewModel.saveEditingDraft())
+        XCTAssertEqual(store.library.variations.count, 2)
+        XCTAssertEqual(store.library.variations[0], original)
+        XCTAssertEqual(store.library.variations[1].rhythm.name, "Writing")
+        XCTAssertEqual(store.library.variations[1].rhythm.workDuration, 25 * 60)
+        XCTAssertEqual(store.library.variations[1].rhythm.longBreakDuration, 30 * 60)
+        XCTAssertEqual(store.library.variations[1].rhythm.sessionsBeforeLongBreak, 3)
+        XCTAssertEqual(viewModel.selectedVariationID, store.library.variations[1].id)
     }
 
     private func makeRhythm(name: String) -> DailyRhythm {

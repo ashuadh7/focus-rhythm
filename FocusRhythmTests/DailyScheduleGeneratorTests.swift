@@ -161,7 +161,7 @@ final class DailyScheduleGeneratorTests: XCTestCase {
         XCTAssertEqual(schedule.dayStart, now)
         XCTAssertEqual(clockTime(schedule.dayEnd, calendar: calendar), time(16, 0))
         XCTAssertEqual(schedule.intervals.first?.startDate, now)
-        XCTAssertEqual(schedule.longBreakDetails.first?.startDate, now.addingTimeInterval(4 * 60 * 60))
+        XCTAssertEqual(schedule.longBreakDetails.first?.startDate, now.addingTimeInterval(3 * 60 * 60 + 50 * 60))
         XCTAssertEqual(schedule.longBreakDetails.first?.duration, 60 * 60)
     }
 
@@ -183,9 +183,33 @@ final class DailyScheduleGeneratorTests: XCTestCase {
         )
 
         XCTAssertEqual(schedule.expectedFocusTime, 400 * 60)
-        XCTAssertEqual(schedule.longBreakDetails.map(\.name), ["Reset"])
-        XCTAssertEqual(schedule.dayEnd, now.addingTimeInterval(8 * 60 * 60 + 50 * 60))
+        XCTAssertEqual(schedule.longBreakDetails.map(\.name), ["Long break"])
+        XCTAssertEqual(schedule.dayEnd, now.addingTimeInterval(8 * 60 * 60 + 40 * 60))
         XCTAssertTrue(schedule.intervals.allSatisfy { $0.startDate >= now && $0.endDate <= schedule.dayEnd })
+    }
+
+    func testStartNowRepeatsConfiguredSessionCadence() throws {
+        let calendar = makeCalendar()
+        let now = makeDate(year: 2026, month: 7, day: 27, hour: 9, calendar: calendar)
+        let rhythm = makeRhythm(
+            workDuration: 50 * 60,
+            shortBreakDuration: 10 * 60,
+            longBreakDuration: 40 * 60,
+            sessionsBeforeLongBreak: 4
+        )
+
+        let schedule = try generator.generateStartingNow(
+            rhythm: rhythm,
+            at: now,
+            endCondition: .focusFor(5 * 50 * 60),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(schedule.intervals.map(\.kind), [
+            .focus, .shortBreak, .focus, .shortBreak, .focus, .shortBreak, .focus,
+            .longBreak(name: "Long break"), .focus
+        ])
+        XCTAssertEqual(schedule.longBreakDetails.map(\.duration), [40 * 60])
     }
 
     func testNonexistentDayBoundaryTimeReturnsUsefulError() {
@@ -213,6 +237,14 @@ final class DailyScheduleGeneratorTests: XCTestCase {
         assertValidationError(
             makeRhythm(shortBreakDuration: -1),
             equals: .nonPositiveDuration(field: "Short-break duration")
+        )
+        assertValidationError(
+            makeRhythm(longBreakDuration: 0),
+            equals: .nonPositiveDuration(field: "Long-break duration")
+        )
+        assertValidationError(
+            makeRhythm(sessionsBeforeLongBreak: 0),
+            equals: .invalidSessionsBeforeLongBreak
         )
     }
 
@@ -294,7 +326,9 @@ final class DailyScheduleGeneratorTests: XCTestCase {
             endTime: TimeOfDay(hour: 11, minute: 0)
         )],
         longBreaks: [AnchoredLongBreak] = [],
-        partialBehavior: FinalPartialFocusBehavior = .omit
+        partialBehavior: FinalPartialFocusBehavior = .omit,
+        longBreakDuration: TimeInterval? = nil,
+        sessionsBeforeLongBreak: Int? = nil
     ) -> DailyRhythm {
         DailyRhythm(
             name: "Normal day",
@@ -304,7 +338,9 @@ final class DailyScheduleGeneratorTests: XCTestCase {
             shortBreakDuration: shortBreakDuration,
             workSections: sections,
             longBreaks: longBreaks,
-            finalPartialFocusBehavior: partialBehavior
+            finalPartialFocusBehavior: partialBehavior,
+            longBreakDuration: longBreakDuration,
+            sessionsBeforeLongBreak: sessionsBeforeLongBreak
         )
     }
 
