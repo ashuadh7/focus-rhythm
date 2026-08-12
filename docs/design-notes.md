@@ -9,7 +9,8 @@ The morning surface should ask for as few decisions as possible:
 - Start now.
 
 The preview should emphasize start, end, expected focus time, session count, and long
-breaks. A fully editable calendar is not the default surface.
+breaks. A rhythm variation defines a repeating cadence — focus, short break, and a
+long break after a chosen number of focus sessions — rather than a calendar template.
 
 ## Runtime
 
@@ -42,8 +43,8 @@ and a two-minute final return warning.
 
 ## Scheduling vocabulary
 
-- **Daily rhythm:** reusable constraints such as start/end, work cadence, work sections, and long breaks.
+- **Daily rhythm:** a named reusable cadence of focus, short-break, and long-break durations.
 - **Generated schedule:** the concrete dated intervals for one day.
-- **Anchor:** a fixed long break or day end.
-- **Flexible interval:** work or short-break time that may shift around anchors.
+- **Anchor:** the chosen run end; cadence intervals flex within it.
+- **Flexible interval:** a focus or break interval that may shift while the run end stays fixed.
 - **Routine:** a reusable activity rule assigned to eligible breaks in a later phase.

@@ -51,6 +51,8 @@ struct DailyRhythm: Codable, Equatable {
     var dayEnd: TimeOfDay
     var workDuration: TimeInterval
     var shortBreakDuration: TimeInterval
+    var longBreakDuration: TimeInterval
+    var sessionsBeforeLongBreak: Int
     var workSections: [WorkSection]
     var longBreaks: [AnchoredLongBreak]
     var finalPartialFocusBehavior: FinalPartialFocusBehavior
@@ -63,16 +65,85 @@ struct DailyRhythm: Codable, Equatable {
         shortBreakDuration: TimeInterval,
         workSections: [WorkSection],
         longBreaks: [AnchoredLongBreak],
-        finalPartialFocusBehavior: FinalPartialFocusBehavior = .omit
+        finalPartialFocusBehavior: FinalPartialFocusBehavior = .omit,
+        longBreakDuration: TimeInterval? = nil,
+        sessionsBeforeLongBreak: Int? = nil
     ) {
         self.name = name
         self.dayStart = dayStart
         self.dayEnd = dayEnd
         self.workDuration = workDuration
         self.shortBreakDuration = shortBreakDuration
+        self.longBreakDuration = longBreakDuration
+            ?? Self.legacyLongBreakDuration(from: longBreaks)
+        self.sessionsBeforeLongBreak = sessionsBeforeLongBreak
+            ?? Self.legacySessionCount(
+                from: workSections,
+                workDuration: workDuration,
+                shortBreakDuration: shortBreakDuration
+            )
         self.workSections = workSections
         self.longBreaks = longBreaks
         self.finalPartialFocusBehavior = finalPartialFocusBehavior
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, dayStart, dayEnd, workDuration, shortBreakDuration
+        case longBreakDuration, sessionsBeforeLongBreak
+        case workSections, longBreaks, finalPartialFocusBehavior
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        dayStart = try container.decode(TimeOfDay.self, forKey: .dayStart)
+        dayEnd = try container.decode(TimeOfDay.self, forKey: .dayEnd)
+        workDuration = try container.decode(TimeInterval.self, forKey: .workDuration)
+        shortBreakDuration = try container.decode(TimeInterval.self, forKey: .shortBreakDuration)
+        workSections = try container.decode([WorkSection].self, forKey: .workSections)
+        longBreaks = try container.decode([AnchoredLongBreak].self, forKey: .longBreaks)
+        finalPartialFocusBehavior = try container.decodeIfPresent(
+            FinalPartialFocusBehavior.self,
+            forKey: .finalPartialFocusBehavior
+        ) ?? .omit
+        longBreakDuration = try container.decodeIfPresent(
+            TimeInterval.self,
+            forKey: .longBreakDuration
+        ) ?? Self.legacyLongBreakDuration(from: longBreaks)
+        sessionsBeforeLongBreak = try container.decodeIfPresent(
+            Int.self,
+            forKey: .sessionsBeforeLongBreak
+        ) ?? Self.legacySessionCount(
+            from: workSections,
+            workDuration: workDuration,
+            shortBreakDuration: shortBreakDuration
+        )
+    }
+
+    private static func legacyLongBreakDuration(
+        from longBreaks: [AnchoredLongBreak]
+    ) -> TimeInterval {
+        guard let first = longBreaks.first else { return 30 * 60 }
+        let start = first.startTime.hour * 60 + first.startTime.minute
+        let end = first.endTime.hour * 60 + first.endTime.minute
+        return TimeInterval(max(1, end - start) * 60)
+    }
+
+    private static func legacySessionCount(
+        from workSections: [WorkSection],
+        workDuration: TimeInterval,
+        shortBreakDuration: TimeInterval
+    ) -> Int {
+        guard let first = workSections.first,
+              workDuration > 0,
+              shortBreakDuration > 0 else { return 4 }
+        let start = first.startTime.hour * 60 + first.startTime.minute
+        let end = first.endTime.hour * 60 + first.endTime.minute
+        let sectionDuration = TimeInterval(max(0, end - start) * 60)
+        return min(12, max(1, Int(
+            (sectionDuration + shortBreakDuration)
+                / (workDuration + shortBreakDuration)
+        )))
     }
 }
 

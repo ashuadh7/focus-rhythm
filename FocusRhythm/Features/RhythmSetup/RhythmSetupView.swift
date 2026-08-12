@@ -14,7 +14,7 @@ struct RhythmSetupView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if viewModel.variations.isEmpty {
+                if viewModel.variations.isEmpty && !viewModel.isUsingOneTimeRhythm {
                     ContentUnavailableView(
                         "No rhythms yet",
                         systemImage: "clock",
@@ -33,22 +33,23 @@ struct RhythmSetupView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button("New rhythm", systemImage: "plus") { createAndEditVariation() }
                         Button("Duplicate", systemImage: "doc.on.doc") { viewModel.duplicateSelected() }
+                            .disabled(viewModel.selectedVariationID == nil)
                         Button("Delete", systemImage: "trash", role: .destructive) { viewModel.deleteSelected() }
+                            .disabled(viewModel.selectedVariationID == nil)
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
             }
-            .sheet(isPresented: $isEditing) {
+            .sheet(isPresented: $isEditing, onDismiss: viewModel.cancelDraftEditing) {
                 RhythmEditorView(viewModel: viewModel)
             }
         }
     }
 
     private func createAndEditVariation() {
-        viewModel.createVariation()
+        viewModel.beginCreatingVariation()
         isEditing = true
     }
 
@@ -58,10 +59,15 @@ struct RhythmSetupView: View {
                 get: { viewModel.selectedVariationID },
                 set: { if let id = $0 { viewModel.select(id) } }
             )) {
+                if viewModel.selectedVariationID == nil {
+                    Text("One-time rhythm").tag(Optional<UUID>.none)
+                }
                 ForEach(viewModel.variations) { variation in
                     Text(variation.rhythm.name).tag(Optional(variation.id))
                 }
             }
+
+            Button("New variation", systemImage: "plus") { createAndEditVariation() }
 
             if viewModel.isSelectedDefault {
                 Label("Default suggestion", systemImage: "star.fill")
@@ -71,7 +77,12 @@ struct RhythmSetupView: View {
             Button(viewModel.isSelectedDefault ? "Remove default" : "Make default") {
                 viewModel.toggleDefault()
             }
-            Button("Edit variation") { isEditing = true }
+            .disabled(viewModel.selectedVariationID == nil)
+            Button("Edit variation") {
+                viewModel.beginEditingSelected()
+                isEditing = true
+            }
+            .disabled(viewModel.selectedVariationID == nil)
         }
     }
 
@@ -88,11 +99,9 @@ struct RhythmSetupView: View {
             case .stopAt:
                 timePicker("Stop at", time: $viewModel.stopAt)
             case .focusFor:
-                Stepper(
-                    "Focus target: \(duration(viewModel.focusTarget))",
-                    value: $viewModel.focusTarget,
-                    in: 30 * 60...16 * 60 * 60,
-                    step: 30 * 60
+                HourMinuteWheelPicker(
+                    title: "Focus target",
+                    duration: $viewModel.focusTarget
                 )
                 .onChange(of: viewModel.focusTarget) { _, _ in viewModel.refreshRunPreview() }
                 Text("Focus time excludes short and long breaks.")
@@ -200,74 +209,43 @@ private struct RhythmEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Name and cadence template") {
+                Section("Variation") {
                     TextField("Variation name", text: $viewModel.draft.name)
-                    timePicker(
-                        "Template starts",
-                        time: $viewModel.draft.dayStart,
-                        onChange: viewModel.applyStandardCascade
-                    )
-                    timePicker(
-                        "Template ends",
-                        time: $viewModel.draft.dayEnd,
-                        onChange: viewModel.applyStandardCascade
-                    )
-                    Button("Rebuild 4-hour rhythm") {
-                        viewModel.applyStandardCascade()
-                    }
-                    Text("These template times define section and break lengths. Starting a run shifts the cadence to now.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Stepper(
-                        "Focus: \(Int(viewModel.draft.workDuration / 60)) min",
-                        value: $viewModel.draft.workDuration,
-                        in: 60...7200,
-                        step: 60
-                    )
-                    Stepper(
-                        "Short break: \(Int(viewModel.draft.shortBreakDuration / 60)) min",
-                        value: $viewModel.draft.shortBreakDuration,
-                        in: 60...1800,
-                        step: 60
-                    )
-                    Picker("Final partial focus", selection: $viewModel.draft.finalPartialFocusBehavior) {
-                        Text("Omit").tag(FinalPartialFocusBehavior.omit)
-                        Text("Trim to fit").tag(FinalPartialFocusBehavior.trim)
-                    }
                 }
 
-                Section("Work-section cadence") {
-                    ForEach(viewModel.draft.workSections.indices, id: \.self) { index in
-                        VStack(alignment: .leading) {
-                            Text("Section \(index + 1)").font(.headline)
-                            timePicker("Starts", time: $viewModel.draft.workSections[index].startTime)
-                            timePicker("Ends", time: $viewModel.draft.workSections[index].endTime)
-                        }
-                    }
-                    .onDelete { viewModel.draft.workSections.remove(atOffsets: $0) }
-                    Button("Add work section") {
-                        viewModel.draft.workSections.append(WorkSection(
-                            startTime: viewModel.draft.dayStart,
-                            endTime: viewModel.draft.dayEnd
-                        ))
-                    }
+                Section("Focus") {
+                    MinuteWheelPicker(
+                        title: "Focus time",
+                        duration: $viewModel.draft.workDuration,
+                        minuteValues: Array(stride(from: 5, through: 120, by: 5))
+                    )
                 }
 
-                Section("Long-break cadence") {
-                    ForEach(viewModel.draft.longBreaks.indices, id: \.self) { index in
-                        VStack(alignment: .leading) {
-                            TextField("Break name", text: $viewModel.draft.longBreaks[index].name)
-                            timePicker("Starts", time: $viewModel.draft.longBreaks[index].startTime)
-                            timePicker("Ends", time: $viewModel.draft.longBreaks[index].endTime)
+                Section("Breaks") {
+                    MinuteWheelPicker(
+                        title: "Short break time",
+                        duration: $viewModel.draft.shortBreakDuration,
+                        minuteValues: Array(1...30)
+                    )
+                    MinuteWheelPicker(
+                        title: "Long break time",
+                        duration: $viewModel.draft.longBreakDuration,
+                        minuteValues: Array(stride(from: 5, through: 120, by: 5))
+                    )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Focus sessions before long break")
+                        Picker(
+                            "Focus sessions before long break",
+                            selection: $viewModel.draft.sessionsBeforeLongBreak
+                        ) {
+                            ForEach(1...12, id: \.self) { count in
+                                Text("\(count)").tag(count)
+                            }
                         }
-                    }
-                    .onDelete { viewModel.draft.longBreaks.remove(atOffsets: $0) }
-                    Button("Add long break") {
-                        viewModel.draft.longBreaks.append(AnchoredLongBreak(
-                            name: "Long break",
-                            startTime: viewModel.draft.dayStart,
-                            endTime: viewModel.draft.dayEnd
-                        ))
+                        .pickerStyle(.wheel)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, minHeight: 100, maxHeight: 120)
+                        .clipped()
                     }
                 }
 
@@ -278,25 +256,23 @@ private struct RhythmEditorView: View {
                     }
                 }
             }
-            .navigationTitle("Edit rhythm")
+            .navigationTitle(viewModel.isCreatingVariation ? "New variation" : "Edit variation")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: viewModel.draft) { _, _ in viewModel.refreshPreview() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        viewModel.discardDraftChanges()
+                        viewModel.cancelDraftEditing()
                         dismiss()
                     }
                 }
                 ToolbarItemGroup(placement: .confirmationAction) {
                     Menu("Done") {
-                        Button("Update saved variation") {
-                            viewModel.saveDraftToVariation()
-                            if viewModel.validationMessage == nil { dismiss() }
+                        Button(viewModel.isCreatingVariation ? "Save variation" : "Update saved variation") {
+                            if viewModel.saveEditingDraft() { dismiss() }
                         }
                         Button("Use only for this run") {
-                            viewModel.refreshPreview()
-                            if viewModel.validationMessage == nil { dismiss() }
+                            if viewModel.useEditingDraftForThisRun() { dismiss() }
                         }
                     }
                 }
@@ -304,30 +280,89 @@ private struct RhythmEditorView: View {
         }
     }
 
-    private func timePicker(
-        _ title: String,
-        time: Binding<TimeOfDay>,
-        onChange: @escaping () -> Void = {}
-    ) -> some View {
-        DatePicker(
-            title,
-            selection: Binding(
-                get: {
-                    Calendar.current.date(from: DateComponents(
-                        year: 2001,
-                        month: 1,
-                        day: 1,
-                        hour: time.wrappedValue.hour,
-                        minute: time.wrappedValue.minute
-                    )) ?? Date()
-                },
-                set: {
-                    let parts = Calendar.current.dateComponents([.hour, .minute], from: $0)
-                    time.wrappedValue = TimeOfDay(hour: parts.hour ?? 0, minute: parts.minute ?? 0)
-                    onChange()
+}
+
+private struct HourMinuteWheelPicker: View {
+    let title: String
+    @Binding var duration: TimeInterval
+
+    private let hourValues = Array(0...23)
+    private let minuteValues = [0, 15, 30, 45]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+            HStack(spacing: 0) {
+                Picker("Hours", selection: hourSelection) {
+                    ForEach(hourValues, id: \.self) { hours in
+                        Text(hours == 1 ? "1 hour" : "\(hours) hours").tag(hours)
+                    }
                 }
-            ),
-            displayedComponents: .hourAndMinute
+                .pickerStyle(.wheel)
+                .labelsHidden()
+
+                Picker("Minutes", selection: minuteSelection) {
+                    ForEach(minuteValues, id: \.self) { minutes in
+                        Text("\(minutes) min").tag(minutes)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .labelsHidden()
+            }
+            .frame(maxWidth: .infinity, minHeight: 100, maxHeight: 120)
+            .clipped()
+        }
+    }
+
+    private var hourSelection: Binding<Int> {
+        Binding(
+            get: { normalizedDurationComponents.hours },
+            set: { setDuration(hours: $0, minutes: normalizedDurationComponents.minutes) }
         )
+    }
+
+    private var minuteSelection: Binding<Int> {
+        Binding(
+            get: { normalizedDurationComponents.minutes },
+            set: { setDuration(hours: normalizedDurationComponents.hours, minutes: $0) }
+        )
+    }
+
+    private var normalizedDurationComponents: (hours: Int, minutes: Int) {
+        let totalMinutes = max(15, Int((duration / 60).rounded()))
+        let roundedToQuarterHour = Int((Double(totalMinutes) / 15).rounded()) * 15
+        let clampedMinutes = min(roundedToQuarterHour, 23 * 60 + 45)
+        return (clampedMinutes / 60, clampedMinutes % 60)
+    }
+
+    private func setDuration(hours: Int, minutes: Int) {
+        duration = TimeInterval(max(15, hours * 60 + minutes) * 60)
+    }
+}
+
+private struct MinuteWheelPicker: View {
+    let title: String
+    @Binding var duration: TimeInterval
+    let minuteValues: [Int]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+            Picker(
+                title,
+                selection: Binding(
+                    get: { Int(duration / 60) },
+                    set: { duration = TimeInterval($0 * 60) }
+                )
+            ) {
+                ForEach(minuteValues, id: \.self) { minutes in
+                    Text("\(minutes) min").tag(minutes)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            .frame(maxWidth: .infinity, minHeight: 100, maxHeight: 120)
+            .clipped()
+        }
     }
 }
