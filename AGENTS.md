@@ -8,6 +8,12 @@ work. Check the issue's current dependencies before starting. If the oldest issu
 blocked, continue to the next-oldest unblocked issue and tell the user which issue was
 skipped and why.
 
+Apply selection to implementation issues in the active milestone and its explicit
+prerequisites. Umbrella issues are tracking containers; work their eligible children.
+Issues labelled `deferred` or explicitly deferred outside the active milestone are
+not candidates until promoted. Check native GitHub dependency links as well as issue
+bodies. Existing work awaiting review retains its approval gates.
+
 Use this oldest-first policy during the prototype phase. The user may replace it with
 explicit prioritization once the prototype is sufficiently mature.
 

@@ -14,7 +14,7 @@ behavior under review.
 | --- | --- | --- | --- |
 | **Start test** | A rhythm built from 20-second blocks | Controls, transitions, labels, persistence across a handful of blocks | Anything depending on realistic ratios — warning thresholds, extension caps, percentage-based behavior |
 | **Scaled clock** | A production-shaped rhythm run at 10×–120× | A full day's arc, day end, planned-versus-actual, long-break exit ramp at real proportions | Anything spanning more than one day |
-| **Date travel + fixtures** | Jump the app's notion of today; load a plan in a known state | Landmark pressure, replan carry-forward, a 10-day horizon, day 4 and day 14 behavior | Anything about pacing or feel |
+| **Date travel + fixtures** | Jump the app's notion of today; load a plan in a known state | Deadline feasibility, imported-week carryover, day 4 and day 14 behavior | Anything about pacing or feel |
 
 Two standing cautions. Under a scaled clock, local notifications still fire on real
 wall-clock time, so notification reconciliation must be verified at 1× or through the
@@ -136,3 +136,24 @@ Use **Start test** so the named remainder is easy to verify.
 2. In the final 10% of a long break, confirm **Add time** appears. Use it once and
    confirm the next focus block begins after the added grace time while the day still
    ends at its planned time.
+
+## Planned v0.3 verification coverage
+
+These are acceptance targets for features not implemented yet. Each implementation
+issue must turn the applicable target into a short runnable scenario with actual UI
+labels; #58 audits the complete workflow after the features land.
+
+| Coverage | Mechanism | Issue |
+| --- | --- | --- |
+| Reviewed weekly import, split-task identity, reimport with local progress/conflicts | Synthetic JSON fixture and normal UI | #39, #40, #43 |
+| Fixed versus suggested placement, late start, multiple available windows | Scaled clock + fixtures; notifications at 1× | #62, #41, #45 |
+| Grading needs 30 more minutes while the 50/10/60 cadence stays intact | Scaled clock | #63, #49 |
+| Insert ten-minute email, attribute its work, resume grading without resetting focus | Scaled clock; relaunch during interruption | #63, #64 |
+| Reorder, postpone A, pick B, and let A return with a deadline explanation | Fixtures + interaction at normal speed | #47, #49 |
+| Finish three hours early or need five extra hours; show honest overflow | Scaled clock + fixtures | #41, #45, #50 |
+| End early, relaunch, carry revised unfinished work into tomorrow/next week | Date travel + fixtures | #40, #50, #57 |
+
+Final review must confirm that optional categories do not require quotas, task choices
+do not consume breaks, and estimate expiry does not mark a task complete. Verify the
+default focus screen stays readable in about two seconds. Pure queue and capacity
+calculations belong in unit tests; manual checks focus on user-visible behavior.

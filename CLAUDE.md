@@ -12,21 +12,18 @@ Minimal, token-conscious. Update only at phase transitions or workflow changes â
 
 ## Current phase
 
-v0.1 is complete: the native SwiftUI app has a continuous work/break loop, water
-logging, local history and summary, bounded soft landings, and background-time
-correction with local notifications.
-
-The active direction is v0.2: generate and run a finite, recoverable daily rhythm
-with larger work sections, anchored long breaks, and a definite end. Read PLAN.md
-before creating or restructuring issues; the order there reflects model dependencies.
+v0.1 and v0.2 are complete. The active direction is v0.3: follow an externally
+prepared weekly plan through the existing focus/break rhythm. Read PLAN.md before
+creating or restructuring issues. Import, flexible preferences, fixed commitments,
+task selection/postponement, urgent insertion, and carryover are in scope. The
+landmark graph, task-clearer, category quotas, and continuous Notion sync are deferred.
 
 ## Workflow
 
 - There are two issue workflows:
   - **Working on an issue:** user asks the agent to work a specific issue. Agent tries to solve it, then reports when done. User manually checks the implementation. User gives explicit go-ahead before push and merge. If there are problems, user either gives fix instructions or creates a separate sub-issue / issue to handle them.
   - **Working on issues:** user asks the agent to look at the overview. Agent reviews existing issues, dependencies, and structure, then helps change, split, merge, reprioritize, or otherwise restructure issues as directed.
-- One issue at a time in the "working on an issue" workflow. User points at the issue; agent does not pick.
-- `ORDER.txt` holds the current phase's issue order and a `*` on the last completed one. When the user says "work on the next issue," take the line after the `*`, and move the `*` down once the issue is merged.
+- One issue at a time in the "working on an issue" workflow. Follow `AGENTS.md` for oldest-unblocked issue selection, active-milestone scope, branch strategy, and approval gates. GitHub dependencies replace any historical `ORDER.txt` ordering.
 - The user usually names the files an issue touches up front. If not, consult `STRUCTURE.md` before searching.
 - New branch per issue. **Never commit to main.**
 - User tests the implementation manually. Do not claim success on UI work without their confirmation.

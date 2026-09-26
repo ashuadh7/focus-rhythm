@@ -15,6 +15,14 @@ Most focus timers (Pomodoro apps) tell you to take a break, but what you do duri
 The hypothesis: decisions become easier and habits become more consistent when they
 are *embedded in a reusable rhythm you already need*, not negotiated again every hour.
 
+## Planning and execution
+
+Prepare the broader week in Notion. Bring a reviewed snapshot into FocusRhythm to
+see today's suggested flow, make a few adjustments, and start. Preferred days and
+times stay flexible; explicitly fixed commitments are protected. Actual work,
+remaining estimates, and task completion are tracked separately. This is the v0.3
+direction; import and task execution are not implemented yet.
+
 ## Core insight
 
 Two kinds of habits, two solutions:
@@ -126,8 +134,10 @@ Manual product checks use the reusable scenarios and workflow in
 work/break timers, water logging, local persistence, a daily summary, bounded
 interruption/extension controls, and background-time correction with notifications.
 
-The active product phase is **v0.2: finite daily rhythm** — generating and running a
-recoverable day with work sections, short breaks, long breaks, and a definite end.
+The v0.2 finite daily rhythm is complete. The active direction is **v0.3: follow an
+imported weekly plan** — bring externally prepared tasks into the existing rhythm,
+preserve fixed commitments, and adapt suggested work as estimates and priorities change.
+The timer controls pacing; tasks can span or share focus intervals.
 See [PLAN.md](PLAN.md) for scope and sequencing.
 
 ## License
