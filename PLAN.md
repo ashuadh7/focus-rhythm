@@ -74,102 +74,122 @@ carry the day through short work/break cycles, long breaks, and a definite endin
 8. Extend the daily summary with planned-versus-actual focus.
 9. Review and continue an intentionally stopped unfinished day.
 
-## Active direction: v0.3 — Landmark planning layer
+## Active direction: v0.3 — Follow an imported weekly plan
 
 ### Outcome
 
-Plan the next 5–10 days once, around landmarks and their dependencies. Then let the
-running day choose what to work on next, so that focus time requires no decisions.
+Bring an externally prepared weekly plan into FocusRhythm and follow it through a
+changing day, with only occasional small decisions. Planning happens in Notion;
+FocusRhythm supplies the focus/break rhythm, current work target, lightweight
+adjustments, and continuity when estimates change.
 
-### The separation this phase rests on
+The first transfer is a reviewed, versioned JSON snapshot prepared externally from
+the weekly plan. Direct Notion fetching and continuous two-way synchronization are
+not required for this version. The import issue must document the conversion path.
 
-- **Rhythm** is time: slots, anchored breaks, day end. Built in v0.2, unchanged here.
-- **Plan** is work: landmarks, dependencies, estimates, ordering. It contains no clock times.
-- **Binding** happens at runtime: a task is attached to a focus interval when that interval
-  begins, never in advance.
+### Product contract
 
-Tasks are never scheduled into slots ahead of time. Estimate error is absorbed by the
-queue, not by the schedule — that is what lets a rough estimate survive a real day.
+- **Rhythm controls pacing.** For example: 50-minute focus, 10-minute short breaks,
+  and a 60-minute long break after four focus sessions. The long break replaces the
+  fourth short break. Task estimates do not change Pomodoro durations.
+- **Tasks describe work.** Keep original effort, revised remaining effort, actual
+  focus spent, and explicit completion separate. A task can span several focus
+  intervals, and one interval can contain several tasks. Rest is not task effort.
+- **Preferred placement is flexible.** Preserve imported preferred days, suggested
+  clock times, and ordering. Forecast assignments can move; they are not commitments.
+- **Only explicit fixed commitments reserve time.** Deadlines constrain completion;
+  they do not occupy a meeting-length slot. Availability and chosen run end bound
+  the day. Unknown future availability is not assumed to be free time.
+- **The queue permits choice.** Reorder persistently, pick another task, or say
+  “not now.” A postponed task stays unfinished and returns later with its deadline
+  and remaining effort considered. Explain impossible deadlines rather than forcing
+  a fit. Never silently switch the active task because a forecast changed.
+- **Decisions usually happen during breaks.** Explicit task completion, priority
+  changes, and urgent insertion are deliberate mid-focus exceptions. Choosing the
+  next task during a break does not end the break.
+- **Broad planning stays external.** Local edits are for following and adapting the
+  imported plan. A reviewed reimport preserves local progress and surfaces conflicts.
 
-### Scope
+### Scope and issue map
 
-Plan model
+Plan and timing foundation — tracker #38:
 
-- [ ] Landmark: name, date and time, hue, kind (meeting or deadline)
-- [ ] Dependency task: parent landmark, estimate, remaining estimate, order, done state
-- [ ] Floating task: no landmark, but a soft by-date so it still appears as a real target
-- [ ] Minimum useful chunk per task, defaulting to "needs a full slot"
-- [ ] Versioned, serializable plan document so later import needs no migration
-- [ ] Landmark pressure: remaining estimate before a landmark versus focus capacity until it
+- [ ] #39: Versioned weekly model, task identity, split allocations, remaining effort,
+  completion, deadlines/dependencies, flexible time preferences, fixed commitments,
+  availability, and optional category tags.
+- [ ] #40: Persistence, safe reviewed import merge, local overrides, and carryover.
+- [ ] #62: Run the cadence around fixed commitments and available windows; define
+  boundary/resumption behavior and keep notifications consistent.
+- [ ] #41: Forecast suggested placement and deadline feasibility using actual focus
+  capacity, without counting breaks or the same capacity twice.
 
-Planning surface
+Import and preview — tracker #42:
 
-- [ ] Create and edit landmarks and their dependencies
-- [ ] Scrollable multi-day landmark graph — landmark in a dark shade, its dependencies in
-      lighter shades of the same hue, completed dependencies struck through
-- [ ] Replan: close the current horizon and open the next one
-- [ ] Morning slate — a derived projection of today's likely tasks, explicitly not a commitment
-- [ ] One optional stated day target, checked at day end
+- [ ] #43: Reviewed JSON snapshot import, conversion instructions, validation,
+  repeated import without duplicates, and source/local conflict review.
+- [ ] #45: Simple week overview and adjustable today preview; start now, reorder,
+  change preferred placement, and see overflow without rebuilding the day.
 
-Runtime binding
+Execution — tracker #46:
 
-- [ ] Selection rule: highest-priority unfinished task whose minimum chunk fits the time
-      remaining; when nothing fits, start the break early rather than invent work
-- [ ] Focus screen shows only four things: time left, current target, its landmark, task progress
-- [ ] Break decisions: done, still going, or add time — remaining estimates are revised here
-- [ ] One-tap "not this one" override of the next pick, available in breaks only
-- [ ] Marking done mid-interval pulls the next task in without moving the clock
-- [ ] Long breaks show the wider view: remaining slate and landmark pressure
-- [ ] Day end reconciles plan against actual and shows which landmarks moved
+- [ ] #47: Persistent queue with explicit reorder, deliberate selection, and temporary
+  postponement; deadline explanations and deterministic resurfacing.
+- [ ] #63: Attribute actual task work across interval boundaries and task switches,
+  with recovery that does not duplicate time or infer completion from estimates.
+- [ ] #48: Quiet focus countdown and current target, with optional context/progress.
+- [ ] #49: Done, continue, revise remaining effort, reorder, not now, and pick another.
+- [ ] #64: Quick-add urgent work, do now within the current Pomodoro, then resume the
+  interrupted task or choose another. No separate mini-timer is required.
+- [ ] #50: Remaining-day review, planned-versus-actual task work, and next-day/week
+  carryover that preserves revised effort and deadlines.
 
-Test tooling
+Verification — tracker #55:
 
-The existing 20-second **Start test** scenario shortens durations, which verifies
-controls and transitions but cannot reach anything that takes a day or a horizon.
-v0.3 needs two more mechanisms, built before the features that depend on them.
+- [x] #56: Shared scaled clock, merged into development.
+- [ ] #57: Date travel and synthetic imported-week/progress fixtures.
+- [ ] #58: Final manual scenario audit and end-to-end milestone review. Feature
+  issues still update their own scenarios and obtain manual approval as they land.
 
-- [ ] Scaled clock: run a realistic rhythm at 10×–120× so a full day's arc takes minutes
-      while durations, ratios, and warning thresholds stay production-shaped
-- [ ] Date travel and seeded plan fixtures: jump the app's notion of today forward by
-      days and load a plan in a known state, since a 10-day horizon cannot be run through
-      even compressed
-- [ ] Both gated to debug builds and reachable from one debug surface
-- [ ] Manual scenarios in `docs/manual-testing.md` extended per issue, as now
+### Required real-day scenarios
 
-Task-clearer
+1. Grading needs 30 more minutes: revise remaining work; keep the cadence and show
+   the changed forecast.
+2. An urgent ten-minute email appears: suspend grading, work on the email inside the
+   same focus interval, then resume. Attribute time to the correct task. If the
+   interval ends first, take the normal break and retain unfinished email work.
+3. Priorities change: reorder upcoming work without reconstructing the rhythm.
+4. A is suggested but the user wants B: postpone A, select B, and return A to later
+   consideration without deletion, immediate repeated suggestions, or a hidden
+   deadline conflict.
+5. Work finishes three hours early or needs five extra hours: recompute available
+   capacity or overflow honestly; protect fixed commitments and chosen day end.
+6. Start late, end early, relaunch, and move to tomorrow/next week: preserve actual
+   work, remaining estimates, completion, and local choices.
 
-- [ ] Nested rapid-fire schedule inside one slot: per-item 3/5/10-minute intervals, no breaks between
-- [ ] Per item: done, +5, or push to the back; the session end stays fixed, so overrun eats the tail
-- [ ] A standing slot in the rhythm rather than an on-demand mode
+### Sequencing
 
-### Explicitly out of scope for v0.3
+Use the oldest open, unblocked implementation issue in the active milestone and its
+prerequisites, as described in AGENTS.md. GitHub dependency links and the issue bodies
+are authoritative; trackers are not implementation tasks and deferred issues are
+excluded. Current foundation work can begin with #39, then #40.
 
-- Unstructured task dump and automatic structuring — that is v0.5 import
-- Bin-packing or optimizing which combination of tasks best fills a remainder
-- A separate filler-task pool; the task-clearer replaces it
-- Recurring break routines, now v0.4
-- Ranking, scoring, or balancing between work and break tasks
-- A general to-do system — tasks exist to serve landmarks
+#60 (rhythm variations, PR #61) is existing review work and a prerequisite for #62.
+It remains subject to its current manual/merge approval gates. The new plan does not
+authorize merging it. #56 is already complete. Remaining dependencies lead through
+fixed-commitment scheduling, forecasting, queue/runtime, and integrated verification.
 
-### Open decision
+### Deferred from v0.3
 
-Calendar integration direction, deferred and blocking nothing above: EventKit (read
-meetings in as landmark candidates, write focus and break sessions to a dedicated
-calendar) versus an in-app history view only.
-
-### Recommended issue order
-
-1. Scaled clock, before anything whose behavior takes a day to observe.
-2. Plan model, validation, and persistence.
-3. Date travel and seeded plan fixtures, once there is a plan to seed.
-4. Landmark pressure and capacity derivation.
-5. Planning surface for landmarks and dependencies.
-6. Scrollable landmark graph.
-7. Runtime task queue and the selection rule.
-8. Focus and break target surfaces.
-9. Morning slate, stated day target, and replan.
-10. Task-clearer nested session.
-11. Day-end reconciliation of plan versus actual.
+- Full in-app weekly plan authoring.
+- Landmark/dependency graph (#44).
+- Standing rapid-fire task-clearer and nested mini-timers (#51–#54). Urgent task
+  insertion is supported independently by #64.
+- Category time quotas, automatic balancing, and forced choices after repeated
+  skips. Optional category tags and per-task actual time are included; policy ideas
+  remain in ideas-parking-lot.md.
+- Continuous/two-way Notion sync, direct connector integration, and in-app prose/LLM
+  parsing. Snapshot import is included now.
+- Schedule optimization and automatic placement of recurring break routines.
 
 ## Next: v0.4 — Recurring break routines
 
@@ -195,12 +215,9 @@ Do not add randomization, ranking, mood selection, or drag-and-drop placement in
 this phase. Water logging should eventually become one activity in this general
 system rather than a permanent special case.
 
-A break routine and a task-clearer item share a shape: a small named unit with an
-approximate duration and a done state. Build the second on the first rather than
-twice, differing only in where each is eligible to appear.
-
-Work targets, previously planned as v0.4, are absorbed into v0.3 — a target is now a
-dependency of a landmark rather than a free-standing intention.
+Work targets are included in v0.3 as imported tasks; they do not require a landmark.
+The deferred task-clearer may reuse task/routine concepts if explicitly promoted,
+but it is not a prerequisite for recurring break routines.
 
 ## Later: Scheduled launch ritual
 
@@ -224,12 +241,13 @@ or add punitive missed-alarm streaks or unlimited snoozing.
 
 ## Later roadmap
 
-**v0.5 — JSON import/export**
+**v0.5 — Broader import/export and optional integration**
 
-- Use a versioned representation of the now-stable daily rhythm, generated schedule, and plan
-- Validate and preview imported schedules and plans before accepting them
-- Accept an unstructured task dump structured externally into landmarks and dependencies
-- Allow external services such as ChatGPT or Claude to prepare a schedule without embedding a paid API
+- Reviewed weekly-plan JSON import is already part of v0.3.
+- Extend export/round-trip support for plans, daily rhythms, and generated schedules
+  once the execution model has been proven.
+- Consider direct Notion fetching or synchronization only with explicit rules for
+  source changes versus local progress; do not require a paid embedded LLM API.
 
 **v0.6 — Ambient system surfaces**
 
@@ -249,8 +267,8 @@ or add punitive missed-alarm streaks or unlimited snoozing.
 - Configure recurring constraints once; generate repetition automatically.
 - A plan must survive lateness and interruption without demanding a new planning session.
 - Fixed anchors should be trustworthy. Flexible intervals may move or disappear.
-- Focus shows one thing. Every decision belongs to a break — a choice offered mid-focus
-  is a defection opportunity.
+- Focus shows one thing. Put routine decisions in breaks, with deliberate exceptions
+  for task completion, urgent work, and user-requested switching.
 - Match spare time against how small a piece of a task is still worth doing, not against
   the size of the task.
 - Work that is always correctly ranked last needs a reserved slot, not a higher rank.
