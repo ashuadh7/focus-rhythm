@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "FocusRhythm weekly plan v1",
-  "description": "Structural contract. Cross-field and reference validation in WeeklyPlan.validate() is also required; see weekly-plan-format.md.",
+  "title": "FocusRhythm task and planning data v1",
+  "description": "Structural contract for local tasks and optional imported planning context. Cross-field validation in WeeklyPlan.validate() is also required; see weekly-plan-format.md.",
   "type": "object",
   "properties": {
     "schemaVersion": {
@@ -11,9 +11,7 @@
     "id": {
       "$ref": "#/$defs/identity"
     },
-    "sourceID": {
-      "$ref": "#/$defs/identity"
-    },
+    "sourceID": { "$ref": "#/$defs/identity" },
     "timeZoneIdentifier": {
       "$ref": "#/$defs/identity"
     },
@@ -65,12 +63,7 @@
   "required": [
     "schemaVersion",
     "id",
-    "sourceID",
-    "timeZoneIdentifier",
-    "horizon",
-    "tasks",
-    "allocations",
-    "fixedCommitments"
+    "tasks"
   ],
   "$defs": {
     "identity": {
@@ -80,6 +73,10 @@
     "effortSeconds": {
       "type": "number",
       "minimum": 0
+    },
+    "childEstimateAccounting": {
+      "type": "string",
+      "enum": ["usesParentEstimate", "addsToParentEstimate"]
     },
     "day": {
       "type": "string",
@@ -163,10 +160,10 @@
           "$ref": "#/$defs/identity"
         },
         "originalEstimateSeconds": {
-          "$ref": "#/$defs/effortSeconds"
+          "anyOf": [{ "$ref": "#/$defs/effortSeconds" }, { "type": "null" }]
         },
         "remainingEstimateSeconds": {
-          "$ref": "#/$defs/effortSeconds"
+          "anyOf": [{ "$ref": "#/$defs/effortSeconds" }, { "type": "null" }]
         },
         "completedAt": {
           "anyOf": [
@@ -198,6 +195,12 @@
             "$ref": "#/$defs/identity"
           },
           "uniqueItems": true
+        },
+        "parentTaskID": {
+          "anyOf": [{ "$ref": "#/$defs/identity" }, { "type": "null" }]
+        },
+        "parentEstimateAccounting": {
+          "anyOf": [{ "$ref": "#/$defs/childEstimateAccounting" }, { "type": "null" }]
         },
         "project": {
           "anyOf": [
@@ -239,9 +242,6 @@
       "required": [
         "id",
         "title",
-        "originalEstimateSeconds",
-        "remainingEstimateSeconds",
-        "order",
         "prerequisiteTaskIDs",
         "categoryTags"
       ]
@@ -333,6 +333,18 @@
         "until"
       ]
     },
+    "estimateAdjustment": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "parentTaskID": { "$ref": "#/$defs/identity" },
+        "childTaskID": { "$ref": "#/$defs/identity" },
+        "accounting": { "$ref": "#/$defs/childEstimateAccounting" },
+        "amountSeconds": { "anyOf": [{ "$ref": "#/$defs/effortSeconds" }, { "type": "null" }] },
+        "recordedAt": { "$ref": "#/$defs/timestamp" }
+      },
+      "required": ["id", "parentTaskID", "childTaskID", "accounting", "recordedAt"]
+    },
     "workSegment": {
       "type": "object",
       "properties": {
@@ -389,6 +401,10 @@
             "$ref": "#/$defs/deferral"
           }
         },
+        "estimateAdjustments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/estimateAdjustment" }
+        },
         "workSegments": {
           "type": "array",
           "items": {
@@ -398,6 +414,7 @@
       },
       "required": [
         "deferrals",
+        "estimateAdjustments",
         "workSegments"
       ]
     }

@@ -38,6 +38,17 @@
       "id": "reading", "title": "Read a chapter",
       "originalEstimateSeconds": 2400, "remainingEstimateSeconds": 2400,
       "order": 3, "prerequisiteTaskIDs": [], "categoryTags": ["personal growth"]
+    },
+    {
+      "id": "literature-review", "sourceID": "notion:literature-review", "title": "Read related works",
+      "originalEstimateSeconds": 9000, "remainingEstimateSeconds": 5400,
+      "order": 4, "prerequisiteTaskIDs": [], "categoryTags": []
+    },
+    {
+      "id": "literature-x", "title": "Literature review: sub-branch X",
+      "originalEstimateSeconds": 3600, "remainingEstimateSeconds": 3600,
+      "parentTaskID": "literature-review", "parentEstimateAccounting": "usesParentEstimate",
+      "prerequisiteTaskIDs": [], "categoryTags": []
     }
   ],
   "allocations": [
@@ -58,9 +69,17 @@
     }
   ],
   "localState": {
-    "taskOrder": ["overdue", "grading", "reading", "email"],
+    "taskOrder": ["overdue", "grading", "literature-review", "literature-x", "reading", "email"],
     "deferrals": [
       { "taskID": "overdue", "deferredAt": "2026-09-28T09:00:00-04:00", "until": "2026-09-28T13:00:00-04:00" }
+    ],
+    "estimateAdjustments": [
+      {
+        "id": "00000000-0000-0000-0000-000000000004",
+        "parentTaskID": "literature-review", "childTaskID": "literature-x",
+        "accounting": "usesParentEstimate", "amountSeconds": 3600,
+        "recordedAt": "2026-09-28T09:50:00-04:00"
+      }
     ],
     "workSegments": [
       {

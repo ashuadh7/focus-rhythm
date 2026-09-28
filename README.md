@@ -138,8 +138,9 @@ The v0.2 finite daily rhythm is complete. The active direction is **v0.3: follow
 imported weekly plan** — bring externally prepared tasks into the existing rhythm,
 preserve fixed commitments, and adapt suggested work as estimates and priorities change.
 The timer controls pacing; tasks can span or share focus intervals.
-See [PLAN.md](PLAN.md) for scope and sequencing. The versioned weekly-plan model and
-[JSON transfer contract](docs/weekly-plan-format.md) provide the foundation for import.
+See [PLAN.md](PLAN.md) for scope and sequencing. The durable task model and optional
+[JSON planning contract](docs/weekly-plan-format.md) support local task entry first,
+with import as a later source of planning context.
 
 ## License
 

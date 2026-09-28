@@ -137,29 +137,36 @@ Use **Start test** so the named remainder is easy to verify.
    confirm the next focus block begins after the added grace time while the day still
    ends at its planned time.
 
-## Weekly-plan model and transfer contract (#39)
+## Task model review (#39)
 
-This is a model-only review; import controls arrive in #43. Use the checked-in
-[synthetic JSON](examples/weekly-plan-v1.json) and [format guide](weekly-plan-format.md).
-No app-data changes or date travel are required.
+There is no phone screen for this yet. This review checks the rules that the later
+task-entry screen will use. The sample is in
+[weekly-plan-v1.json](examples/weekly-plan-v1.json).
 
-1. Open the example and confirm both grading allocations reference the single
-   `grading` task. The 10:00 meeting is fixed; the 09:00–11:00 grading range is a
-   suggestion. Wednesday has a suggestion but no known availability. Tuesday has
-   explicitly empty availability.
-2. Inspect the three work segments: grading 20 minutes, email 10, grading 20. Confirm
-   the shared focus interval ID, 40/10 actual totals, and separate original/remaining
-   estimates. Email has an explicit completion date; the overdue notes task does not,
-   even though its remaining estimate is zero.
-3. Confirm the local queue order differs from source `order`, and postponing the
-   overdue task retains its ID, deadline, and unfinished state. Reading has no allocation.
-4. In Xcode's Test navigator, run **WeeklyPlanTests**. Confirm the example round trip,
-   split-task totals, malformed-file diagnostics, dependency cycles, DST boundaries,
-   and break/duplicate-credit rejection pass. Review the field rules if anything in
-   this transfer contract would misrepresent the externally prepared week.
+Read this one example:
 
-Approve the example and model semantics before committing/pushing this issue. This
-review does not claim an in-app import or persistence workflow exists yet.
+- **Literature review** is an imported task with **2.5 hours** of work left.
+- You discover **Review X**, a new one-hour piece of that work.
+- You choose **Use existing estimate**. That means Review X is part of the original
+  2.5 hours, rather than extra work.
+- The app records Literature review as **1.5 hours** left and Review X as **1 hour**.
+  Together, they still equal **2.5 hours**.
+
+The other choice is **Add to estimate**. In that case, Literature review stays at
+2.5 hours and Review X adds another hour, for **3.5 hours total**.
+
+Check that these rules feel right:
+
+1. A task can be created in the app without Notion, a date, or an estimate.
+2. A child task can use part of its parent's estimate or add more work to it.
+3. If the parent has no estimate, a child can still be linked to it. The app should say
+   that the total is unknown instead of making up a number.
+4. Imported tasks and locally created tasks can appear together. A later re-import must
+   not remove a child that was created locally.
+
+The automated tests also cover an example meeting, suggested work times, task order,
+postponing a task, and recorded focus time. Those details matter to the data model, but
+they are not needed to decide whether the child-task behavior above makes sense.
 
 ## Planned v0.3 verification coverage
 
