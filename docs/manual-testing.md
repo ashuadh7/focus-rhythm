@@ -137,6 +137,30 @@ Use **Start test** so the named remainder is easy to verify.
    confirm the next focus block begins after the added grace time while the day still
    ends at its planned time.
 
+## Weekly-plan model and transfer contract (#39)
+
+This is a model-only review; import controls arrive in #43. Use the checked-in
+[synthetic JSON](examples/weekly-plan-v1.json) and [format guide](weekly-plan-format.md).
+No app-data changes or date travel are required.
+
+1. Open the example and confirm both grading allocations reference the single
+   `grading` task. The 10:00 meeting is fixed; the 09:00–11:00 grading range is a
+   suggestion. Wednesday has a suggestion but no known availability. Tuesday has
+   explicitly empty availability.
+2. Inspect the three work segments: grading 20 minutes, email 10, grading 20. Confirm
+   the shared focus interval ID, 40/10 actual totals, and separate original/remaining
+   estimates. Email has an explicit completion date; the overdue notes task does not,
+   even though its remaining estimate is zero.
+3. Confirm the local queue order differs from source `order`, and postponing the
+   overdue task retains its ID, deadline, and unfinished state. Reading has no allocation.
+4. In Xcode's Test navigator, run **WeeklyPlanTests**. Confirm the example round trip,
+   split-task totals, malformed-file diagnostics, dependency cycles, DST boundaries,
+   and break/duplicate-credit rejection pass. Review the field rules if anything in
+   this transfer contract would misrepresent the externally prepared week.
+
+Approve the example and model semantics before committing/pushing this issue. This
+review does not claim an in-app import or persistence workflow exists yet.
+
 ## Planned v0.3 verification coverage
 
 These are acceptance targets for features not implemented yet. Each implementation
@@ -145,7 +169,7 @@ labels; #58 audits the complete workflow after the features land.
 
 | Coverage | Mechanism | Issue |
 | --- | --- | --- |
-| Reviewed weekly import, split-task identity, reimport with local progress/conflicts | Synthetic JSON fixture and normal UI | #39, #40, #43 |
+| Reviewed weekly import and reimport with local progress/conflicts | Synthetic JSON fixture and normal UI | #40, #43 |
 | Fixed versus suggested placement, late start, multiple available windows | Scaled clock + fixtures; notifications at 1× | #62, #41, #45 |
 | Grading needs 30 more minutes while the 50/10/60 cadence stays intact | Scaled clock | #63, #49 |
 | Insert ten-minute email, attribute its work, resume grading without resetting focus | Scaled clock; relaunch during interruption | #63, #64 |
