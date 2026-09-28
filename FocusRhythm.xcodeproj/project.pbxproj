@@ -37,6 +37,10 @@
 		0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001E0000000000000001 /* ActiveRunStore.swift */; };
 		0F10001D0000000000000001 /* ActiveRunStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F20001F0000000000000001 /* ActiveRunStoreTests.swift */; };
 		0F10001E0000000000000001 /* AppClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000200000000000000001 /* AppClock.swift */; };
+		0F1000A10000000000000001 /* WeeklyPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A10000000000000001 /* WeeklyPlan.swift */; };
+		0F1000A20000000000000001 /* WeeklyPlanValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A20000000000000001 /* WeeklyPlanValidation.swift */; };
+		0F1000A30000000000000001 /* WeeklyPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A30000000000000001 /* WeeklyPlanTests.swift */; };
+		0F1000A40000000000000001 /* weekly-plan-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 0F2000A40000000000000001 /* weekly-plan-v1.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +86,10 @@
 		0F20001E0000000000000001 /* ActiveRunStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRunStore.swift; sourceTree = "<group>"; };
 		0F20001F0000000000000001 /* ActiveRunStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveRunStoreTests.swift; sourceTree = "<group>"; };
 		0F2000200000000000000001 /* AppClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClock.swift; sourceTree = "<group>"; };
+		0F2000A10000000000000001 /* WeeklyPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlan.swift; sourceTree = "<group>"; };
+		0F2000A20000000000000001 /* WeeklyPlanValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanValidation.swift; sourceTree = "<group>"; };
+		0F2000A30000000000000001 /* WeeklyPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanTests.swift; sourceTree = "<group>"; };
+		0F2000A40000000000000001 /* weekly-plan-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "docs/examples/weekly-plan-v1.json"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +180,8 @@
 		0F7000080000000000000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				0F2000A20000000000000001 /* WeeklyPlanValidation.swift */,
+				0F2000A10000000000000001 /* WeeklyPlan.swift */,
 				0F2000200000000000000001 /* AppClock.swift */,
 				0F2000040000000000000001 /* FocusPhase.swift */,
 				0F2000090000000000000001 /* WaterLogEntry.swift */,
@@ -186,6 +196,8 @@
 		0F7000090000000000000001 /* FocusRhythmTests */ = {
 			isa = PBXGroup;
 			children = (
+				0F2000A30000000000000001 /* WeeklyPlanTests.swift */,
+				0F2000A40000000000000001 /* weekly-plan-v1.json */,
 				0F2000050000000000000001 /* FocusTimerViewModelTests.swift */,
 				0F20000D0000000000000001 /* WaterLoggingViewModelTests.swift */,
 				0F2000110000000000000001 /* FocusSessionStoreTests.swift */,
@@ -260,6 +272,7 @@
 			buildConfigurationList = 0F8000020000000000000001 /* Build configuration list for PBXNativeTarget "FocusRhythmTests" */;
 			buildPhases = (
 				0F9000020000000000000001 /* Sources */,
+				0F9000A40000000000000001 /* Resources */,
 				0F6000020000000000000001 /* Frameworks */,
 			);
 			buildRules = (
@@ -310,11 +323,22 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		0F9000A40000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (0F1000A40000000000000001 /* weekly-plan-v1.json in Resources */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		0F9000010000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0F1000A20000000000000001 /* WeeklyPlanValidation.swift in Sources */,
+				0F1000A10000000000000001 /* WeeklyPlan.swift in Sources */,
 				0F1000010000000000000001 /* FocusRhythmApp.swift in Sources */,
 				0F1000020000000000000001 /* TimerHomeView.swift in Sources */,
 				0F1000030000000000000001 /* FocusTimerViewModel.swift in Sources */,
@@ -344,6 +368,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0F1000A30000000000000001 /* WeeklyPlanTests.swift in Sources */,
 				0F1000050000000000000001 /* FocusTimerViewModelTests.swift in Sources */,
 				0F10000B0000000000000001 /* WaterLoggingViewModelTests.swift in Sources */,
 				0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */,

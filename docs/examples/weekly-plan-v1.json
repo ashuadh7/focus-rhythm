@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "week-2026-09-28",
+  "sourceID": "notion:synthetic-weekly-plan",
+  "timeZoneIdentifier": "America/Toronto",
+  "horizon": { "startDay": "2026-09-28", "endDayExclusive": "2026-10-05" },
+  "availability": [
+    {
+      "day": "2026-09-28",
+      "windows": [
+        { "start": "2026-09-28T09:00:00-04:00", "end": "2026-09-28T12:00:00-04:00" },
+        { "start": "2026-09-28T13:00:00-04:00", "end": "2026-09-28T17:00:00-04:00" }
+      ]
+    },
+    { "day": "2026-09-29", "windows": [] }
+  ],
+  "tasks": [
+    {
+      "id": "grading", "sourceID": "notion:grading", "title": "Grade assignments",
+      "originalEstimateSeconds": 10800, "remainingEstimateSeconds": 8400,
+      "order": 0, "deadline": "2026-10-02T17:00:00-04:00",
+      "prerequisiteTaskIDs": [], "project": "Teaching", "context": "Laptop",
+      "minimumChunkSeconds": 1200, "categoryTags": ["professional growth"]
+    },
+    {
+      "id": "email", "sourceID": "notion:email", "title": "Reply to coordinator",
+      "originalEstimateSeconds": 900, "remainingEstimateSeconds": 300,
+      "completedAt": "2026-09-28T09:30:00-04:00", "order": 1,
+      "prerequisiteTaskIDs": [], "categoryTags": []
+    },
+    {
+      "id": "overdue", "sourceID": "notion:overdue", "title": "Revise last week's notes",
+      "originalEstimateSeconds": 1800, "remainingEstimateSeconds": 0,
+      "order": 2, "deadline": "2026-09-25T17:00:00-04:00",
+      "prerequisiteTaskIDs": ["email"], "categoryTags": ["personal growth"]
+    },
+    {
+      "id": "reading", "title": "Read a chapter",
+      "originalEstimateSeconds": 2400, "remainingEstimateSeconds": 2400,
+      "order": 3, "prerequisiteTaskIDs": [], "categoryTags": ["personal growth"]
+    },
+    {
+      "id": "literature-review", "sourceID": "notion:literature-review", "title": "Read related works",
+      "originalEstimateSeconds": 9000, "remainingEstimateSeconds": 5400,
+      "order": 4, "prerequisiteTaskIDs": [], "categoryTags": []
+    },
+    {
+      "id": "literature-x", "title": "Literature review: sub-branch X",
+      "originalEstimateSeconds": 3600, "remainingEstimateSeconds": 3600,
+      "parentTaskID": "literature-review", "parentEstimateAccounting": "usesParentEstimate",
+      "prerequisiteTaskIDs": [], "categoryTags": []
+    }
+  ],
+  "allocations": [
+    {
+      "id": "grading-monday", "taskID": "grading", "preferredDay": "2026-09-28",
+      "suggestedTime": { "start": "2026-09-28T09:00:00-04:00", "end": "2026-09-28T11:00:00-04:00" },
+      "plannedEffortSeconds": 7200
+    },
+    {
+      "id": "grading-wednesday", "taskID": "grading", "preferredDay": "2026-09-30",
+      "plannedEffortSeconds": 3600
+    }
+  ],
+  "fixedCommitments": [
+    {
+      "id": "meeting", "sourceID": "notion:meeting", "title": "Teaching meeting",
+      "time": { "start": "2026-09-28T10:00:00-04:00", "end": "2026-09-28T10:30:00-04:00" }
+    }
+  ],
+  "localState": {
+    "taskOrder": ["overdue", "grading", "literature-review", "literature-x", "reading", "email"],
+    "deferrals": [
+      { "taskID": "overdue", "deferredAt": "2026-09-28T09:00:00-04:00", "until": "2026-09-28T13:00:00-04:00" }
+    ],
+    "estimateAdjustments": [
+      {
+        "id": "00000000-0000-0000-0000-000000000004",
+        "parentTaskID": "literature-review", "childTaskID": "literature-x",
+        "accounting": "usesParentEstimate", "amountSeconds": 3600,
+        "recordedAt": "2026-09-28T09:50:00-04:00"
+      }
+    ],
+    "workSegments": [
+      {
+        "id": "00000000-0000-0000-0000-000000000001", "taskID": "grading",
+        "runID": "00000000-0000-0000-0000-000000000010",
+        "focusIntervalID": "00000000-0000-0000-0000-000000000020",
+        "time": { "start": "2026-09-28T09:00:00-04:00", "end": "2026-09-28T09:20:00-04:00" }
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000002", "taskID": "email",
+        "runID": "00000000-0000-0000-0000-000000000010",
+        "focusIntervalID": "00000000-0000-0000-0000-000000000020",
+        "time": { "start": "2026-09-28T09:20:00-04:00", "end": "2026-09-28T09:30:00-04:00" }
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000003", "taskID": "grading",
+        "runID": "00000000-0000-0000-0000-000000000010",
+        "focusIntervalID": "00000000-0000-0000-0000-000000000020",
+        "time": { "start": "2026-09-28T09:30:00-04:00", "end": "2026-09-28T09:50:00-04:00" }
+      }
+    ]
+  }
+}

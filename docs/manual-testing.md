@@ -137,6 +137,37 @@ Use **Start test** so the named remainder is easy to verify.
    confirm the next focus block begins after the added grace time while the day still
    ends at its planned time.
 
+## Task model review (#39)
+
+There is no phone screen for this yet. This review checks the rules that the later
+task-entry screen will use. The sample is in
+[weekly-plan-v1.json](examples/weekly-plan-v1.json).
+
+Read this one example:
+
+- **Literature review** is an imported task with **2.5 hours** of work left.
+- You discover **Review X**, a new one-hour piece of that work.
+- You choose **Use existing estimate**. That means Review X is part of the original
+  2.5 hours, rather than extra work.
+- The app records Literature review as **1.5 hours** left and Review X as **1 hour**.
+  Together, they still equal **2.5 hours**.
+
+The other choice is **Add to estimate**. In that case, Literature review stays at
+2.5 hours and Review X adds another hour, for **3.5 hours total**.
+
+Check that these rules feel right:
+
+1. A task can be created in the app without Notion, a date, or an estimate.
+2. A child task can use part of its parent's estimate or add more work to it.
+3. If the parent has no estimate, a child can still be linked to it. The app should say
+   that the total is unknown instead of making up a number.
+4. Imported tasks and locally created tasks can appear together. A later re-import must
+   not remove a child that was created locally.
+
+The automated tests also cover an example meeting, suggested work times, task order,
+postponing a task, and recorded focus time. Those details matter to the data model, but
+they are not needed to decide whether the child-task behavior above makes sense.
+
 ## Planned v0.3 verification coverage
 
 These are acceptance targets for features not implemented yet. Each implementation
@@ -145,7 +176,7 @@ labels; #58 audits the complete workflow after the features land.
 
 | Coverage | Mechanism | Issue |
 | --- | --- | --- |
-| Reviewed weekly import, split-task identity, reimport with local progress/conflicts | Synthetic JSON fixture and normal UI | #39, #40, #43 |
+| Reviewed weekly import and reimport with local progress/conflicts | Synthetic JSON fixture and normal UI | #40, #43 |
 | Fixed versus suggested placement, late start, multiple available windows | Scaled clock + fixtures; notifications at 1× | #62, #41, #45 |
 | Grading needs 30 more minutes while the 50/10/60 cadence stays intact | Scaled clock | #63, #49 |
 | Insert ten-minute email, attribute its work, resume grading without resetting focus | Scaled clock; relaunch during interruption | #63, #64 |
