@@ -163,6 +163,10 @@ Check that these rules feel right:
    that the total is unknown instead of making up a number.
 4. Imported tasks and locally created tasks can appear together. A later re-import must
    not remove a child that was created locally.
+5. After task entry and import screens land, create a parent and local child, reorder
+   them, leave one unfinished, relaunch, and preview a refreshed source plan. Confirm
+   the local child, its remaining estimate, and the queue order remain intact; a changed
+   source estimate must be shown for review rather than silently replacing local work.
 
 The automated tests also cover an example meeting, suggested work times, task order,
 postponing a task, and recorded focus time. Those details matter to the data model, but

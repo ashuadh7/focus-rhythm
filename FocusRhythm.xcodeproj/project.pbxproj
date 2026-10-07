@@ -41,6 +41,8 @@
 		0F1000A20000000000000001 /* WeeklyPlanValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A20000000000000001 /* WeeklyPlanValidation.swift */; };
 		0F1000A30000000000000001 /* WeeklyPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A30000000000000001 /* WeeklyPlanTests.swift */; };
 		0F1000A40000000000000001 /* weekly-plan-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 0F2000A40000000000000001 /* weekly-plan-v1.json */; };
+		0F1000A50000000000000001 /* WeeklyPlanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A50000000000000001 /* WeeklyPlanStore.swift */; };
+		0F1000A60000000000000001 /* WeeklyPlanStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +92,8 @@
 		0F2000A20000000000000001 /* WeeklyPlanValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanValidation.swift; sourceTree = "<group>"; };
 		0F2000A30000000000000001 /* WeeklyPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanTests.swift; sourceTree = "<group>"; };
 		0F2000A40000000000000001 /* weekly-plan-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "docs/examples/weekly-plan-v1.json"; sourceTree = SOURCE_ROOT; };
+		0F2000A50000000000000001 /* WeeklyPlanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanStore.swift; sourceTree = "<group>"; };
+		0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,6 +201,7 @@
 			isa = PBXGroup;
 			children = (
 				0F2000A30000000000000001 /* WeeklyPlanTests.swift */,
+				0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */,
 				0F2000A40000000000000001 /* weekly-plan-v1.json */,
 				0F2000050000000000000001 /* FocusTimerViewModelTests.swift */,
 				0F20000D0000000000000001 /* WaterLoggingViewModelTests.swift */,
@@ -222,6 +227,7 @@
 		0F70000B0000000000000001 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				0F2000A50000000000000001 /* WeeklyPlanStore.swift */,
 				0F2000080000000000000001 /* TimerSettingsStore.swift */,
 				0F20000A0000000000000001 /* WaterLogStore.swift */,
 				0F20000F0000000000000001 /* FocusSessionStore.swift */,
@@ -339,6 +345,7 @@
 			files = (
 				0F1000A20000000000000001 /* WeeklyPlanValidation.swift in Sources */,
 				0F1000A10000000000000001 /* WeeklyPlan.swift in Sources */,
+				0F1000A50000000000000001 /* WeeklyPlanStore.swift in Sources */,
 				0F1000010000000000000001 /* FocusRhythmApp.swift in Sources */,
 				0F1000020000000000000001 /* TimerHomeView.swift in Sources */,
 				0F1000030000000000000001 /* FocusTimerViewModel.swift in Sources */,
@@ -369,6 +376,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0F1000A30000000000000001 /* WeeklyPlanTests.swift in Sources */,
+				0F1000A60000000000000001 /* WeeklyPlanStoreTests.swift in Sources */,
 				0F1000050000000000000001 /* FocusTimerViewModelTests.swift in Sources */,
 				0F10000B0000000000000001 /* WaterLoggingViewModelTests.swift in Sources */,
 				0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */,
