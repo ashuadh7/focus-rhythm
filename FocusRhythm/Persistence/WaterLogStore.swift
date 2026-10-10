@@ -33,6 +33,13 @@ final class UserDefaultsWaterLogStore: WaterLogStoring {
         return entry
     }
 
+#if DEBUG
+    /// Used only by the explicit debug-fixture confirmation flow.
+    func replaceForDebugFixture(_ entries: [WaterLogEntry]) {
+        save(entries)
+    }
+#endif
+
     private func allEntries() -> [WaterLogEntry] {
         guard let data = defaults.data(forKey: Key.entries),
               let entries = try? JSONDecoder().decode([WaterLogEntry].self, from: data) else {

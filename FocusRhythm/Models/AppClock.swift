@@ -39,5 +39,21 @@ final class AppClock {
         virtualAnchor = currentVirtualTime
         rate = newRate
     }
+
+    /// Moves the virtual clock without changing its rate. This is deliberately a
+    /// debug-only operation: release builds always follow wall-clock time.
+    func setDate(_ date: Date) {
+        wallAnchor = wallNow()
+        virtualAnchor = date
+    }
+
+    func travel(days: Int, calendar: Calendar = .current) {
+        guard days != 0, let destination = calendar.date(byAdding: .day, value: days, to: now) else { return }
+        setDate(destination)
+    }
+
+    func returnToWallClock() {
+        setDate(wallNow())
+    }
 #endif
 }
