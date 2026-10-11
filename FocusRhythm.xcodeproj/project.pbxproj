@@ -43,6 +43,9 @@
 		0F1000A40000000000000001 /* weekly-plan-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 0F2000A40000000000000001 /* weekly-plan-v1.json */; };
 		0F1000A50000000000000001 /* WeeklyPlanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A50000000000000001 /* WeeklyPlanStore.swift */; };
 		0F1000A60000000000000001 /* WeeklyPlanStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */; };
+		0F1000A70000000000000001 /* DebugFixtureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A70000000000000001 /* DebugFixtureLoader.swift */; };
+		0F1000A80000000000000001 /* weekly-plan-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 0F2000A40000000000000001 /* weekly-plan-v1.json */; };
+		0F1000A90000000000000001 /* DebugFixtureLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A90000000000000001 /* DebugFixtureLoaderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +97,8 @@
 		0F2000A40000000000000001 /* weekly-plan-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "docs/examples/weekly-plan-v1.json"; sourceTree = SOURCE_ROOT; };
 		0F2000A50000000000000001 /* WeeklyPlanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanStore.swift; sourceTree = "<group>"; };
 		0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanStoreTests.swift; sourceTree = "<group>"; };
+		0F2000A70000000000000001 /* DebugFixtureLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixtureLoader.swift; sourceTree = "<group>"; };
+		0F2000A90000000000000001 /* DebugFixtureLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixtureLoaderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +144,7 @@
 			isa = PBXGroup;
 			children = (
 				0F2000010000000000000001 /* FocusRhythmApp.swift */,
+				0F2000A70000000000000001 /* DebugFixtureLoader.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -200,6 +206,7 @@
 		0F7000090000000000000001 /* FocusRhythmTests */ = {
 			isa = PBXGroup;
 			children = (
+				0F2000A90000000000000001 /* DebugFixtureLoaderTests.swift */,
 				0F2000A30000000000000001 /* WeeklyPlanTests.swift */,
 				0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */,
 				0F2000A40000000000000001 /* weekly-plan-v1.json */,
@@ -262,6 +269,7 @@
 			buildConfigurationList = 0F8000010000000000000001 /* Build configuration list for PBXNativeTarget "FocusRhythm" */;
 			buildPhases = (
 				0F9000010000000000000001 /* Sources */,
+				0F9000A80000000000000001 /* Resources */,
 				0F6000010000000000000001 /* Frameworks */,
 			);
 			buildRules = (
@@ -330,6 +338,12 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		0F9000A80000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (0F1000A80000000000000001 /* weekly-plan-v1.json in Resources */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0F9000A40000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -368,6 +382,7 @@
 				0F1000190000000000000001 /* RhythmSetupView.swift in Sources */,
 				0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */,
 				0F10001E0000000000000001 /* AppClock.swift in Sources */,
+				0F1000A70000000000000001 /* DebugFixtureLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,6 +392,7 @@
 			files = (
 				0F1000A30000000000000001 /* WeeklyPlanTests.swift in Sources */,
 				0F1000A60000000000000001 /* WeeklyPlanStoreTests.swift in Sources */,
+				0F1000A90000000000000001 /* DebugFixtureLoaderTests.swift in Sources */,
 				0F1000050000000000000001 /* FocusTimerViewModelTests.swift in Sources */,
 				0F10000B0000000000000001 /* WaterLoggingViewModelTests.swift in Sources */,
 				0F10000F0000000000000001 /* FocusSessionStoreTests.swift in Sources */,

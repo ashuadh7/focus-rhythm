@@ -33,6 +33,13 @@ final class UserDefaultsFocusSessionStore: FocusSessionStoring {
         return session
     }
 
+#if DEBUG
+    /// Used only by the explicit debug-fixture confirmation flow.
+    func replaceForDebugFixture(_ sessions: [FocusSession]) {
+        save(sessions)
+    }
+#endif
+
     private func allSessions() -> [FocusSession] {
         guard let data = defaults.data(forKey: Key.sessions),
               let sessions = try? JSONDecoder().decode([FocusSession].self, from: data) else {

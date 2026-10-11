@@ -46,6 +46,27 @@ and planned-versus-actual summary totals.
    actual focus totals describe the production day rather than the real minutes spent.
 7. Return the clock to **1×** before normal use or notification testing.
 
+## Date travel and task fixtures (#57)
+
+Use a debug build. The bottom debug strip has **‹ Day**, **Day ›**, and **Today**;
+it is absent from release builds. Its fixture menu deliberately asks for confirmation
+because loading a fixture replaces the saved task catalog, focus sessions, water logs,
+and any active or stopped run.
+
+1. Choose **Load debug fixture** → **Local-only day 1**, confirm replacement, and
+   verify the date becomes September 28, 2026. Check that the fixture includes an
+   unknown-effort task plus child work that both uses and adds to a parent estimate.
+2. Tap **Day ›** three times and then ten more times. The travelled dates should be
+   day 4 and day 14, while the seeded partial/completed focus and water entries remain
+   on their respective dates.
+3. Return to day 1, load **Imported + local day 1**, and confirm the imported meeting,
+   work segments, local child, added local child, unknown-effort task, reorder, and
+   deferral are present in the persisted catalog.
+4. Quit and relaunch. Confirm the loaded task catalog persists, then use the date
+   controls to revisit the fixture dates. Return to **Today** and set the clock to
+   **1×** before notification checks. Fixtures do not make local notifications
+   representative of date travel.
+
 ## Named soft-landings
 
 Use this scenario for timer transitions, extensions, inserted breaks, skipped breaks,
