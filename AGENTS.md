@@ -17,6 +17,15 @@ bodies. Existing work awaiting review retains its approval gates.
 Use this oldest-first policy during the prototype phase. The user may replace it with
 explicit prioritization once the prototype is sufficiently mature.
 
+## Carry-forward design notes
+
+Before beginning implementation for a newly selected issue, read
+`docs/carryforward.md`. Compare its `Tags` with the GitHub issue title, body, labels,
+and dependencies. When an entry is relevant, follow its stated product decisions and
+surface any needed scope or dependency update before implementing. Do not treat an
+unrelated carry-forward note as permission to expand an issue's scope; ask the user
+when applying it would materially change that issue.
+
 ## Branch and Milestone Strategy
 
 `development` is the integration branch for all work in the current milestone. `main`

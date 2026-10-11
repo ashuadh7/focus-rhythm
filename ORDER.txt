@@ -8,19 +8,19 @@ into `development` and has been closed.
 Completed
 
 *   39  Versioned task/planning model
-*   56  Shared scaled clock
-
-Active
-
 *   40  Persist tasks, planning state, progress, and carryover
+*   56  Shared scaled clock
+*   57  Date travel and local/imported-task fixtures
+
+Review gate before the next scheduling work
+
+*   60  Reusable cadence variations — existing PR #61 is a separate manual-review
+        and merge gate; it must be resolved before #62.
 
 Upcoming dependency-aware path
 
-    60  Reusable cadence variations — existing PR #61 is a separate manual-review
-        and merge gate; it must be resolved before #62.
     62  Run cadence around fixed commitments and availability (#39, #60)
     41  Forecast placement and deadline feasibility (#39, #62)
-    57  Date travel and local/imported-task fixtures (#40, #56)
     67  Create local tasks and add them to the queue (#40)
     68  Break work into children without double-counting (#40, #41, #67)
     47  Persistent task queue: select, reorder, and postpone (#40, #41)
