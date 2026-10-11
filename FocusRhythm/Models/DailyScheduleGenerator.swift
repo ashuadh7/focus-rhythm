@@ -9,6 +9,7 @@ enum DailyRhythmValidationError: Error, Equatable, LocalizedError {
     case workSectionsNotOrderedOrOverlapping(previousIndex: Int, index: Int)
     case workSectionOutsideDay(index: Int)
     case invalidLongBreak(index: Int)
+    case invalidSessionsBeforeLongBreak
     case longBreaksNotOrderedOrOverlapping(previousIndex: Int, index: Int)
     case longBreakOutsideDay(index: Int)
     case workSectionOverlapsLongBreak(sectionIndex: Int, longBreakIndex: Int)
@@ -32,6 +33,8 @@ enum DailyRhythmValidationError: Error, Equatable, LocalizedError {
             return "Work section \(index + 1) must be contained within the configured day."
         case let .invalidLongBreak(index):
             return "Long break \(index + 1) must start before it ends."
+        case .invalidSessionsBeforeLongBreak:
+            return "Sessions before a long break must be at least one."
         case let .longBreaksNotOrderedOrOverlapping(previousIndex, index):
             return "Long breaks \(previousIndex + 1) and \(index + 1) are out of order or overlap."
         case let .longBreakOutsideDay(index):
@@ -143,166 +146,87 @@ struct DailyScheduleGenerator {
         calendar: Calendar
     ) throws -> GeneratedDailySchedule {
         try validate(rhythm)
-        let sectionDurations = try relativeSectionDurations(rhythm, on: now, calendar: calendar)
-        let breakTemplates = try relativeLongBreaks(rhythm, on: now, calendar: calendar)
 
         switch endCondition {
         case let .stopAt(time):
             let end = try resolve(time, field: "Stop time", on: now, calendar: calendar)
             guard end > now else { throw DailyRhythmValidationError.dayStartMustPrecedeEnd }
-            return rollingSchedule(
+            return cadenceSchedule(
                 rhythm: rhythm,
                 startingAt: now,
-                stoppingAt: end,
-                sectionDurations: sectionDurations,
-                breakTemplates: breakTemplates
+                stoppingAt: end
             )
         case let .focusFor(target):
             guard target > 0 else {
                 throw DailyRhythmValidationError.nonPositiveDuration(field: "Focus target")
             }
-            return focusTargetSchedule(
+            return cadenceSchedule(
                 rhythm: rhythm,
                 startingAt: now,
-                focusTarget: target,
-                sectionDurations: sectionDurations,
-                breakTemplates: breakTemplates
+                focusTarget: target
             )
         }
     }
 
-    private func rollingSchedule(
+    private func cadenceSchedule(
         rhythm: DailyRhythm,
         startingAt start: Date,
-        stoppingAt end: Date,
-        sectionDurations: [TimeInterval],
-        breakTemplates: [(name: String, duration: TimeInterval)]
+        stoppingAt end: Date? = nil,
+        focusTarget: TimeInterval? = nil
     ) -> GeneratedDailySchedule {
         var intervals: [ScheduledInterval] = []
         var cursor = start
-        var sectionIndex = 0
+        var completedFocus: TimeInterval = 0
+        var sessionInCadence = 0
 
-        while cursor < end {
-            let sectionDuration = sectionDurations[sectionIndex % sectionDurations.count]
-            let sectionEnd = min(cursor.addingTimeInterval(sectionDuration), end)
-            intervals.append(contentsOf: fill(sectionFrom: cursor, to: sectionEnd, rhythm: rhythm))
-            cursor = sectionEnd
-            guard cursor < end else { break }
+        while true {
+            let remainingTarget = focusTarget.map { $0 - completedFocus }
+            if let remainingTarget, remainingTarget <= 0 { break }
 
-            if !breakTemplates.isEmpty {
-                let item = breakTemplates[sectionIndex % breakTemplates.count]
-                let breakEnd = min(cursor.addingTimeInterval(item.duration), end)
-                intervals.append(ScheduledInterval(
-                    kind: .longBreak(name: item.name),
-                    startDate: cursor,
-                    endDate: breakEnd,
-                    isAnchored: false
-                ))
-                cursor = breakEnd
-            }
-            sectionIndex += 1
-        }
+            let focusDuration = min(rhythm.workDuration, remainingTarget ?? rhythm.workDuration)
+            if let end, cursor.addingTimeInterval(focusDuration) > end { break }
 
-        return GeneratedDailySchedule(
-            rhythmName: rhythm.name,
-            dayStart: start,
-            dayEnd: end,
-            intervals: intervals
-        )
-    }
+            let focusEnd = cursor.addingTimeInterval(focusDuration)
+            intervals.append(ScheduledInterval(
+                kind: .focus,
+                startDate: cursor,
+                endDate: focusEnd,
+                isAnchored: false
+            ))
+            cursor = focusEnd
+            completedFocus += focusDuration
+            sessionInCadence += 1
 
-    private func focusTargetSchedule(
-        rhythm: DailyRhythm,
-        startingAt start: Date,
-        focusTarget: TimeInterval,
-        sectionDurations: [TimeInterval],
-        breakTemplates: [(name: String, duration: TimeInterval)]
-    ) -> GeneratedDailySchedule {
-        var intervals: [ScheduledInterval] = []
-        var remainingFocus = focusTarget
-        var cursor = start
-        var sectionIndex = 0
+            if let focusTarget, completedFocus >= focusTarget { break }
 
-        while remainingFocus > 0 {
-            let sectionDuration = sectionDurations[sectionIndex % sectionDurations.count]
-            let sectionEnd = cursor.addingTimeInterval(sectionDuration)
+            let usesLongBreak = sessionInCadence == rhythm.sessionsBeforeLongBreak
+            let breakDuration = usesLongBreak
+                ? rhythm.longBreakDuration
+                : rhythm.shortBreakDuration
 
-            while cursor < sectionEnd, remainingFocus > 0 {
-                let focusDuration = min(
-                    rhythm.workDuration,
-                    remainingFocus,
-                    sectionEnd.timeIntervalSince(cursor)
-                )
-                guard focusDuration > 0 else { break }
-                let focusEnd = cursor.addingTimeInterval(focusDuration)
-                intervals.append(ScheduledInterval(
-                    kind: .focus,
-                    startDate: cursor,
-                    endDate: focusEnd,
-                    isAnchored: false
-                ))
-                remainingFocus -= focusDuration
-                cursor = focusEnd
-
-                guard remainingFocus > 0,
-                      cursor.addingTimeInterval(rhythm.shortBreakDuration + min(rhythm.workDuration, remainingFocus)) <= sectionEnd
+            if let end {
+                guard cursor.addingTimeInterval(breakDuration + rhythm.workDuration) <= end
                 else { break }
-                let breakEnd = cursor.addingTimeInterval(rhythm.shortBreakDuration)
-                intervals.append(ScheduledInterval(
-                    kind: .shortBreak,
-                    startDate: cursor,
-                    endDate: breakEnd,
-                    isAnchored: false
-                ))
-                cursor = breakEnd
             }
 
-            guard remainingFocus > 0 else { break }
-            cursor = sectionEnd
-            if !breakTemplates.isEmpty {
-                let item = breakTemplates[sectionIndex % breakTemplates.count]
-                let breakEnd = cursor.addingTimeInterval(item.duration)
-                intervals.append(ScheduledInterval(
-                    kind: .longBreak(name: item.name),
-                    startDate: cursor,
-                    endDate: breakEnd,
-                    isAnchored: false
-                ))
-                cursor = breakEnd
-            }
-            sectionIndex += 1
+            let breakEnd = cursor.addingTimeInterval(breakDuration)
+            intervals.append(ScheduledInterval(
+                kind: usesLongBreak ? .longBreak(name: "Long break") : .shortBreak,
+                startDate: cursor,
+                endDate: breakEnd,
+                isAnchored: false,
+                label: usesLongBreak ? "Long break" : nil
+            ))
+            cursor = breakEnd
+            if usesLongBreak { sessionInCadence = 0 }
         }
 
         return GeneratedDailySchedule(
             rhythmName: rhythm.name,
             dayStart: start,
-            dayEnd: cursor,
+            dayEnd: end ?? cursor,
             intervals: intervals
         )
-    }
-
-    private func relativeSectionDurations(
-        _ rhythm: DailyRhythm,
-        on date: Date,
-        calendar: Calendar
-    ) throws -> [TimeInterval] {
-        try rhythm.workSections.enumerated().map { index, section in
-            let start = try resolve(section.startTime, field: "Work section \(index + 1) start", on: date, calendar: calendar)
-            let end = try resolve(section.endTime, field: "Work section \(index + 1) end", on: date, calendar: calendar)
-            return end.timeIntervalSince(start)
-        }
-    }
-
-    private func relativeLongBreaks(
-        _ rhythm: DailyRhythm,
-        on date: Date,
-        calendar: Calendar
-    ) throws -> [(name: String, duration: TimeInterval)] {
-        try rhythm.longBreaks.enumerated().map { index, item in
-            let start = try resolve(item.startTime, field: "Long break \(index + 1) start", on: date, calendar: calendar)
-            let end = try resolve(item.endTime, field: "Long break \(index + 1) end", on: date, calendar: calendar)
-            return (item.name, end.timeIntervalSince(start))
-        }
     }
 
     func validate(_ rhythm: DailyRhythm) throws {
@@ -329,6 +253,12 @@ struct DailyScheduleGenerator {
         }
         guard rhythm.shortBreakDuration > 0 else {
             throw DailyRhythmValidationError.nonPositiveDuration(field: "Short-break duration")
+        }
+        guard rhythm.longBreakDuration > 0 else {
+            throw DailyRhythmValidationError.nonPositiveDuration(field: "Long-break duration")
+        }
+        guard rhythm.sessionsBeforeLongBreak > 0 else {
+            throw DailyRhythmValidationError.invalidSessionsBeforeLongBreak
         }
         guard rhythm.dayStart < rhythm.dayEnd else {
             throw DailyRhythmValidationError.dayStartMustPrecedeEnd

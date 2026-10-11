@@ -3,12 +3,18 @@ import Observation
 
 @Observable
 final class RhythmSetupViewModel {
+    private enum DraftEditingMode {
+        case existing(UUID)
+        case new
+    }
+
     private(set) var library: RhythmLibrary
     private(set) var selectedVariationID: UUID?
     var draft: DailyRhythm
     private(set) var preview: GeneratedDailySchedule?
     private(set) var runPreview: GeneratedDailySchedule?
     private(set) var validationMessage: String?
+    private(set) var isUsingOneTimeRhythm = false
     var runEndMode: RunEndMode = .stopAt
     var stopAt = TimeOfDay(hour: 17, minute: 0)
     var focusTarget: TimeInterval = 8 * 60 * 60
@@ -18,6 +24,10 @@ final class RhythmSetupViewModel {
     private let generator: DailyScheduleGenerator
     private let calendar: Calendar
     private let now: () -> Date
+    private var draftEditingMode: DraftEditingMode?
+    private var draftBeforeEditing: DailyRhythm?
+    private var selectionBeforeEditing: UUID?
+    private var oneTimeStateBeforeEditing = false
 
     init(
         store: RhythmLibraryStoring = UserDefaultsRhythmLibraryStore(),
@@ -68,22 +78,39 @@ final class RhythmSetupViewModel {
 
     var canStart: Bool { runPreview != nil && validationMessage == nil }
 
+    var isCreatingVariation: Bool {
+        if case .some(.new) = draftEditingMode { return true }
+        return false
+    }
+
+    var isEditingDraft: Bool { draftEditingMode != nil }
+
     func select(_ id: UUID) {
         guard let variation = library.variations.first(where: { $0.id == id }) else { return }
         selectedVariationID = id
         draft = variation.rhythm
+        isUsingOneTimeRhythm = false
         refreshPreview()
     }
 
-    func createVariation() {
-        var rhythm = Self.exampleRhythm
-        Self.applyStandardCascade(to: &rhythm)
-        let variation = RhythmVariation(rhythm: rhythm)
-        library.variations.append(variation)
-        selectedVariationID = variation.id
-        draft = variation.rhythm
-        persist()
+    func beginCreatingVariation() {
+        draftBeforeEditing = draft
+        selectionBeforeEditing = selectedVariationID
+        oneTimeStateBeforeEditing = isUsingOneTimeRhythm
+        draftEditingMode = .new
+        selectedVariationID = nil
+        isUsingOneTimeRhythm = false
+        draft = Self.exampleRhythm
+        draft.name = availableNewVariationName()
         refreshPreview()
+    }
+
+    func beginEditingSelected() {
+        guard let id = selectedVariationID else { return }
+        draftBeforeEditing = draft
+        selectionBeforeEditing = id
+        oneTimeStateBeforeEditing = isUsingOneTimeRhythm
+        draftEditingMode = .existing(id)
     }
 
     func duplicateSelected() {
@@ -93,6 +120,7 @@ final class RhythmSetupViewModel {
         library.variations.append(variation)
         selectedVariationID = variation.id
         draft = rhythm
+        isUsingOneTimeRhythm = false
         persist()
         refreshPreview()
     }
@@ -108,23 +136,58 @@ final class RhythmSetupViewModel {
         refreshPreview()
     }
 
-    func saveDraftToVariation() {
-        guard let id = selectedVariationID,
-              let index = library.variations.firstIndex(where: { $0.id == id }) else { return }
+    @discardableResult
+    func saveEditingDraft() -> Bool {
         do {
             try generator.validate(draft)
-            library.variations[index].rhythm = draft
+            switch draftEditingMode {
+            case .some(.new):
+                let variation = RhythmVariation(rhythm: draft)
+                library.variations.append(variation)
+                selectedVariationID = variation.id
+            case let .some(.existing(id)):
+                guard let index = library.variations.firstIndex(where: { $0.id == id }) else {
+                    return false
+                }
+                library.variations[index].rhythm = draft
+                selectedVariationID = id
+            case .none:
+                return false
+            }
+            isUsingOneTimeRhythm = false
             validationMessage = nil
             persist()
+            endDraftEditing()
             refreshPreview()
+            return true
         } catch {
             validationMessage = error.localizedDescription
+            return false
         }
     }
 
-    func discardDraftChanges() {
-        guard let rhythm = selectedVariation?.rhythm else { return }
-        draft = rhythm
+    @discardableResult
+    func useEditingDraftForThisRun() -> Bool {
+        do {
+            try generator.validate(draft)
+            validationMessage = nil
+            selectedVariationID = nil
+            isUsingOneTimeRhythm = true
+            endDraftEditing()
+            refreshPreview()
+            return true
+        } catch {
+            validationMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func cancelDraftEditing() {
+        guard isEditingDraft else { return }
+        if let draftBeforeEditing { draft = draftBeforeEditing }
+        selectedVariationID = selectionBeforeEditing
+        isUsingOneTimeRhythm = oneTimeStateBeforeEditing
+        endDraftEditing()
         refreshPreview()
     }
 
@@ -174,11 +237,6 @@ final class RhythmSetupViewModel {
             runPreview = nil
             validationMessage = error.localizedDescription
         }
-    }
-
-    func applyStandardCascade() {
-        Self.applyStandardCascade(to: &draft)
-        refreshPreview()
     }
 
     /// Creates and persists a value snapshot. The draft can be a saved edit or a run-only edit;
@@ -284,6 +342,22 @@ final class RhythmSetupViewModel {
         store.save(library)
     }
 
+    private func endDraftEditing() {
+        draftEditingMode = nil
+        draftBeforeEditing = nil
+        selectionBeforeEditing = nil
+        oneTimeStateBeforeEditing = false
+    }
+
+    private func availableNewVariationName() -> String {
+        let base = "New rhythm"
+        let names = Set(library.variations.map { $0.rhythm.name })
+        guard names.contains(base) else { return base }
+        var suffix = 2
+        while names.contains("\(base) \(suffix)") { suffix += 1 }
+        return "\(base) \(suffix)"
+    }
+
     private var selectedEndCondition: RunEndCondition {
         switch runEndMode {
         case .stopAt:
@@ -296,51 +370,6 @@ final class RhythmSetupViewModel {
     private static func dateKey(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
-    }
-
-    private static func applyStandardCascade(to rhythm: inout DailyRhythm) {
-        let start = rhythm.dayStart.hour * 60 + rhythm.dayStart.minute
-        let end = rhythm.dayEnd.hour * 60 + rhythm.dayEnd.minute
-        guard start < end else {
-            rhythm.workSections = []
-            rhythm.longBreaks = []
-            return
-        }
-
-        let workLength = 4 * 60
-        let breakLength = 60
-        var cursor = start
-        var sectionIndex = 1
-        var sections: [WorkSection] = []
-        var breaks: [AnchoredLongBreak] = []
-
-        while cursor < end {
-            var workEnd = min(cursor + workLength, end)
-            if workEnd < end, workEnd + breakLength >= end {
-                workEnd = end
-            }
-            sections.append(WorkSection(
-                startTime: time(from: cursor),
-                endTime: time(from: workEnd)
-            ))
-            guard workEnd + breakLength < end else { break }
-
-            let breakEnd = workEnd + breakLength
-            breaks.append(AnchoredLongBreak(
-                name: "Long break \(sectionIndex)",
-                startTime: time(from: workEnd),
-                endTime: time(from: breakEnd)
-            ))
-            cursor = breakEnd
-            sectionIndex += 1
-        }
-
-        rhythm.workSections = sections
-        rhythm.longBreaks = breaks
-    }
-
-    private static func time(from minutes: Int) -> TimeOfDay {
-        TimeOfDay(hour: minutes / 60, minute: minutes % 60)
     }
 
     static let exampleRhythm = DailyRhythm(
@@ -365,6 +394,8 @@ final class RhythmSetupViewModel {
                 startTime: TimeOfDay(hour: 13, minute: 0),
                 endTime: TimeOfDay(hour: 14, minute: 0)
             )
-        ]
+        ],
+        longBreakDuration: 40 * 60,
+        sessionsBeforeLongBreak: 4
     )
 }

@@ -12,14 +12,15 @@ ending, full relaunch recovery, or known transition notifications across a 10–
 day. A schedule also becomes the common foundation for future routine assignment and
 external JSON import.
 
-## Fixed anchors, flexible intervals
+## Repeating cadence, fixed run end
 
-**Decision:** Long breaks and the configured day end are fixed anchors. Work sessions,
-short breaks, extensions, and inserted mid-work breaks are flexible around them.
+**Decision:** A saved rhythm is a repeating cadence: focus duration, short-break
+duration, long-break duration, and the number of focus sessions before each long
+break. The chosen run end remains fixed; individual cadence intervals are flexible.
 
-**Why:** A plan should absorb real-life interruptions without making lunch or the end
-of the day unreliable. When flexible time no longer fits before an anchor, the last
-partial focus interval is trimmed or removed rather than quietly shortening every break.
+**Why:** Variations should describe how someone works, not require them to maintain a
+second calendar of template hours. The morning setup already chooses when the run ends,
+so cadence can begin now and repeat predictably without obsolete work-section editing.
 
 ## Configure routines once
 

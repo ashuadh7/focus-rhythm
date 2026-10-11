@@ -27,6 +27,24 @@ spent away multiplied by the selected rate. iOS still schedules and delivers loc
 notifications against real wall-clock dates, so notification timing during that catch-up
 is intentionally not representative; return to 1× for notification checks.
 
+## Rhythm variations
+
+1. Open **Choose today’s rhythm** and tap **New variation** in the Variation section.
+2. Name it **Four-session test** and use the focus-time wheel to choose 50-minute
+   focus, 10-minute short break, 40-minute long break, and 4 focus sessions before the
+   long break. Save the variation.
+3. Create and save a second variation with visibly different values. Switch between
+   the two and confirm each keeps its own name and cadence.
+4. Edit one variation, change a wheel, and choose **Use only for this run**. Confirm
+   the preview changes, then reselect the saved variation and confirm its stored value
+   did not change.
+5. Begin another new variation and cancel. Confirm it does not appear in the picker.
+6. Under **Start now**, choose **Focus for** and confirm its focus target also uses
+   separate hour and 15-minute increment wheels.
+7. At a scaled clock rate, start **Four-session test** and confirm the run gives three
+   short breaks between four focus sessions, then a 40-minute long break. Manual
+   in-run break adjustment controls should remain the existing +/- controls.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,
