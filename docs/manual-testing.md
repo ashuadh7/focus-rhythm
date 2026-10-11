@@ -45,6 +45,15 @@ is intentionally not representative; return to 1× for notification checks.
    short breaks between four focus sessions, then a 40-minute long break. Manual
    in-run break adjustment controls should remain the existing +/- controls.
 
+## Fixed commitments (#62)
+
+Use an imported/debug planning fixture with a work window and a fixed meeting inside
+it. Start the rhythm before the meeting, then confirm focus stops at the meeting's
+fixed start, the meeting is shown as an anchored interval, and cadence resumes only
+after it ends. Relaunch during the meeting and confirm its time is never counted as
+focus. Repeat with no planning data and confirm the normal rhythm-only start is
+unchanged.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,

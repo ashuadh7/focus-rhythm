@@ -212,6 +212,27 @@ final class DailyScheduleGeneratorTests: XCTestCase {
         XCTAssertEqual(schedule.longBreakDetails.map(\.duration), [40 * 60])
     }
 
+    func testStartNowKeepsCadenceInsideAvailabilityAndFixedCommitment() throws {
+        let calendar = makeCalendar()
+        let now = makeDate(year: 2026, month: 7, day: 27, hour: 9, calendar: calendar)
+        let meetingStart = now.addingTimeInterval(50 * 60)
+        let meetingEnd = meetingStart.addingTimeInterval(30 * 60)
+        let schedule = try generator.generateStartingNow(
+            rhythm: makeRhythm(workDuration: 50 * 60, shortBreakDuration: 10 * 60),
+            at: now,
+            endCondition: .stopAt(time(12, 0)),
+            availability: [PlanTimeRange(start: now, end: now.addingTimeInterval(3 * 60 * 60))],
+            fixedCommitments: [FixedCommitment(id: "meeting", sourceID: nil, title: "Meeting", time: PlanTimeRange(start: meetingStart, end: meetingEnd))],
+            calendar: calendar
+        )
+
+        XCTAssertTrue(schedule.intervals.filter { $0.kind == .focus }.allSatisfy {
+            $0.endDate <= meetingStart || $0.startDate >= meetingEnd
+        })
+        XCTAssertEqual(schedule.intervals.first { $0.isAnchored }?.startDate, meetingStart)
+        XCTAssertEqual(schedule.intervals.first { $0.isAnchored }?.endDate, meetingEnd)
+    }
+
     func testNonexistentDayBoundaryTimeReturnsUsefulError() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Toronto")!
