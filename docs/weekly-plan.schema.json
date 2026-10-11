@@ -1,0 +1,422 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FocusRhythm task and planning data v1",
+  "description": "Structural contract for local tasks and optional imported planning context. Cross-field validation in WeeklyPlan.validate() is also required; see weekly-plan-format.md.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "type": "integer"
+    },
+    "id": {
+      "$ref": "#/$defs/identity"
+    },
+    "sourceID": { "$ref": "#/$defs/identity" },
+    "timeZoneIdentifier": {
+      "$ref": "#/$defs/identity"
+    },
+    "horizon": {
+      "$ref": "#/$defs/horizon"
+    },
+    "availability": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/availability"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "allocations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/allocation"
+      }
+    },
+    "fixedCommitments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fixedCommitment"
+      }
+    },
+    "localState": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/localState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "tasks"
+  ],
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "effortSeconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "childEstimateAccounting": {
+      "type": "string",
+      "enum": ["usesParentEstimate", "addsToParentEstimate"]
+    },
+    "day": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,3})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timeRange": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "end": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ]
+    },
+    "horizon": {
+      "type": "object",
+      "properties": {
+        "startDay": {
+          "$ref": "#/$defs/day"
+        },
+        "endDayExclusive": {
+          "$ref": "#/$defs/day"
+        }
+      },
+      "required": [
+        "startDay",
+        "endDayExclusive"
+      ]
+    },
+    "availability": {
+      "type": "object",
+      "properties": {
+        "day": {
+          "$ref": "#/$defs/day"
+        },
+        "windows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/timeRange"
+          }
+        }
+      },
+      "required": [
+        "day",
+        "windows"
+      ]
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identity"
+        },
+        "sourceID": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/identity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/identity"
+        },
+        "originalEstimateSeconds": {
+          "anyOf": [{ "$ref": "#/$defs/effortSeconds" }, { "type": "null" }]
+        },
+        "remainingEstimateSeconds": {
+          "anyOf": [{ "$ref": "#/$defs/effortSeconds" }, { "type": "null" }]
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deadline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prerequisiteTaskIDs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identity"
+          },
+          "uniqueItems": true
+        },
+        "parentTaskID": {
+          "anyOf": [{ "$ref": "#/$defs/identity" }, { "type": "null" }]
+        },
+        "parentEstimateAccounting": {
+          "anyOf": [{ "$ref": "#/$defs/childEstimateAccounting" }, { "type": "null" }]
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "minimumChunkSeconds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/effortSeconds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "categoryTags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identity"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "prerequisiteTaskIDs",
+        "categoryTags"
+      ]
+    },
+    "allocation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identity"
+        },
+        "taskID": {
+          "$ref": "#/$defs/identity"
+        },
+        "preferredDay": {
+          "$ref": "#/$defs/day"
+        },
+        "suggestedTime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plannedEffortSeconds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/effortSeconds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "taskID",
+        "preferredDay"
+      ]
+    },
+    "fixedCommitment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identity"
+        },
+        "sourceID": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/identity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/identity"
+        },
+        "time": {
+          "$ref": "#/$defs/timeRange"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "time"
+      ]
+    },
+    "deferral": {
+      "type": "object",
+      "properties": {
+        "taskID": {
+          "$ref": "#/$defs/identity"
+        },
+        "deferredAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "until": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "taskID",
+        "deferredAt",
+        "until"
+      ]
+    },
+    "estimateAdjustment": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "parentTaskID": { "$ref": "#/$defs/identity" },
+        "childTaskID": { "$ref": "#/$defs/identity" },
+        "accounting": { "$ref": "#/$defs/childEstimateAccounting" },
+        "amountSeconds": { "anyOf": [{ "$ref": "#/$defs/effortSeconds" }, { "type": "null" }] },
+        "recordedAt": { "$ref": "#/$defs/timestamp" }
+      },
+      "required": ["id", "parentTaskID", "childTaskID", "accounting", "recordedAt"]
+    },
+    "workSegment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "taskID": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/identity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "focusIntervalID": {
+          "$ref": "#/$defs/uuid"
+        },
+        "time": {
+          "$ref": "#/$defs/timeRange"
+        }
+      },
+      "required": [
+        "id",
+        "runID",
+        "focusIntervalID",
+        "time"
+      ]
+    },
+    "localState": {
+      "type": "object",
+      "properties": {
+        "taskOrder": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identity"
+              },
+              "uniqueItems": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deferrals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deferral"
+          }
+        },
+        "estimateAdjustments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/estimateAdjustment" }
+        },
+        "workSegments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/workSegment"
+          }
+        }
+      },
+      "required": [
+        "deferrals",
+        "estimateAdjustments",
+        "workSegments"
+      ]
+    }
+  }
+}

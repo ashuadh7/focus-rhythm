@@ -21,11 +21,16 @@ Current file map for the native iOS app after the v0.2 finite-daily-rhythm phase
 
 ## Planned v0.3 additions
 
-- A plan model of landmarks, dependency tasks, and estimates, holding no clock times.
-- Derived landmark pressure comparing remaining estimates against focus capacity.
-- A planning surface and a scrollable multi-day landmark graph.
-- A runtime task queue that binds one task to a focus interval as it begins.
-- A nested rapid-fire task-clearer session inside a single slot.
+- Versioned imported weekly plan: tasks, split allocations, estimates, explicit
+  completion, preferred days/times, fixed commitments, deadlines, and optional tags.
+- Local task-work segments, ordering/deferral state, reviewed reimport, and carryover.
+- Cadence generation around fixed commitments and explicit availability.
+- Capacity/deadline forecast, reviewed JSON import, and lightweight week/day preview.
+- Runtime queue with reorder, postponement, selection, and urgent insertion/resumption.
+- Current task shown within the existing timer; tasks can span or share intervals.
+- Date-travel fixtures and integrated scenario verification.
+
+The landmark graph and rapid-fire task-clearer are deferred beyond v0.3.
 
 ## Tests
 

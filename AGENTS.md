@@ -8,8 +8,23 @@ work. Check the issue's current dependencies before starting. If the oldest issu
 blocked, continue to the next-oldest unblocked issue and tell the user which issue was
 skipped and why.
 
+Apply selection to implementation issues in the active milestone and its explicit
+prerequisites. Umbrella issues are tracking containers; work their eligible children.
+Issues labelled `deferred` or explicitly deferred outside the active milestone are
+not candidates until promoted. Check native GitHub dependency links as well as issue
+bodies. Existing work awaiting review retains its approval gates.
+
 Use this oldest-first policy during the prototype phase. The user may replace it with
 explicit prioritization once the prototype is sufficiently mature.
+
+## Carry-forward design notes
+
+Before beginning implementation for a newly selected issue, read
+`docs/carryforward.md`. Compare its `Tags` with the GitHub issue title, body, labels,
+and dependencies. When an entry is relevant, follow its stated product decisions and
+surface any needed scope or dependency update before implementing. Do not treat an
+unrelated carry-forward note as permission to expand an issue's scope; ask the user
+when applying it would materially change that issue.
 
 ## Branch and Milestone Strategy
 

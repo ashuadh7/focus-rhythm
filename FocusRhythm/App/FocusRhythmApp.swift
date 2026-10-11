@@ -13,6 +13,9 @@ private struct AppEntryView: View {
     @State private var clock: AppClock
     @State private var activeRun: ActiveRhythmRun?
     @State private var stoppedRun: StoppedRhythmRun?
+#if DEBUG
+    @State private var pendingFixture: DebugFixtureKind?
+#endif
 
     private let activeRunStore = UserDefaultsActiveRunStore()
     private let stoppedRunStore = UserDefaultsStoppedRunStore()
@@ -31,6 +34,23 @@ private struct AppEntryView: View {
         content
             .safeAreaInset(edge: .bottom) {
                 debugClockControls
+            }
+            .confirmationDialog(
+                "Replace saved data with a debug fixture?",
+                isPresented: Binding(
+                    get: { pendingFixture != nil },
+                    set: { if !$0 { pendingFixture = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Replace with \(pendingFixture?.title ?? "fixture")", role: .destructive) {
+                    loadPendingFixture()
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingFixture = nil
+                }
+            } message: {
+                Text("This replaces the saved task catalog, focus sessions, water logs, and any active or stopped run. It is available only in debug builds.")
             }
 #else
         content
@@ -89,22 +109,53 @@ private struct AppEntryView: View {
 
 #if DEBUG
     private var debugClockControls: some View {
-        HStack(spacing: 12) {
-            Text("Clock")
-                .font(.caption.weight(.semibold))
-            Picker("Clock rate", selection: Binding(
-                get: { clock.rate },
-                set: { clock.setRate($0) }
-            )) {
-                ForEach(AppClock.availableRates, id: \.self) { rate in
-                    Text("\(Int(rate))×").tag(rate)
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Text("Clock")
+                    .font(.caption.weight(.semibold))
+                Picker("Clock rate", selection: Binding(
+                    get: { clock.rate },
+                    set: { clock.setRate($0) }
+                )) {
+                    ForEach(AppClock.availableRates, id: \.self) { rate in
+                        Text("\(Int(rate))×").tag(rate)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            HStack(spacing: 10) {
+                Button("‹ Day") { clock.travel(days: -1) }
+                Text(clock.now.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption.monospacedDigit())
+                    .frame(maxWidth: .infinity)
+                Button("Day ›") { clock.travel(days: 1) }
+                Button("Today") { clock.returnToWallClock() }
+            }
+            .buttonStyle(.bordered)
+
+            Menu("Load debug fixture") {
+                ForEach(DebugFixtureKind.allCases) { fixture in
+                    Button(fixture.title) { pendingFixture = fixture }
                 }
             }
-            .pickerStyle(.segmented)
+            .buttonStyle(.bordered)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    private func loadPendingFixture() {
+        guard let pendingFixture else { return }
+        defer { self.pendingFixture = nil }
+        do {
+            let fixture = try DebugFixtureLoader().load(pendingFixture)
+            activeRun = nil
+            stoppedRun = nil
+            clock.setDate(fixture.startingDate)
+        } catch {
+            assertionFailure("Unable to load debug fixture: \(error)")
+        }
     }
 #endif
 }

@@ -1,20 +1,50 @@
-v0.3 execution order — move the * to the last completed issue
+v0.3 execution order — current as of 2026-10-07
 
-*   56  Scaled clock for running a day faster than real time
-    39  Model landmarks, dependency tasks, and floating tasks
-    40  Persist the plan horizon and support replanning
-    57  Date travel and seeded plan fixtures
-    41  Derive landmark pressure from remaining estimates and capacity
-    43  Create and edit landmarks and their dependencies
-    44  Scrollable multi-day landmark graph
-    47  Runtime task queue and the selection rule
-    48  Show the current target and its landmark during focus
-    49  Break-time task decisions and the next-pick override
-    45  Morning slate and one optional stated day target
-    52  Generate a nested rapid-fire schedule inside one slot
-    53  Rapid-fire runtime with per-item bounds
-    54  Place a standing task-clearer slot in the rhythm
-    50  Long-break wider view and day-end plan reconciliation
-    58  Extend manual test scenarios for the planning layer
+This is a readable index, not a second source of truth. GitHub issue dependencies
+and issue bodies are authoritative; `AGENTS.md` selects the oldest eligible
+implementation issue. Move the `*` only after the corresponding issue has merged
+into `development` and has been closed.
 
-umbrellas, close when their children close: 38 42 46 51 55
+Completed
+
+*   39  Versioned task/planning model
+*   40  Persist tasks, planning state, progress, and carryover
+*   56  Shared scaled clock
+*   57  Date travel and local/imported-task fixtures
+
+Review gate before the next scheduling work
+
+*   60  Reusable cadence variations — existing PR #61 is a separate manual-review
+        and merge gate; it must be resolved before #62.
+
+Upcoming dependency-aware path
+
+    62  Run cadence around fixed commitments and availability (#39, #60)
+    41  Forecast placement and deadline feasibility (#39, #62)
+    67  Create local tasks and add them to the queue (#40)
+    68  Break work into children without double-counting (#40, #41, #67)
+    47  Persistent task queue: select, reorder, and postpone (#40, #41)
+    63  Attribute task work independently of timer phases (#47, #56)
+    48  Show the current task in the focus timer (#63)
+    49  Adjust estimates and choose another task (#48)
+    64  Insert urgent work and resume the interrupted task (#49, #63, #68)
+    45  Review and adjust today’s suggested flow (#47, #67, #68)
+    43  Review and import an external weekly-plan JSON snapshot (#40, #45, #67)
+    50  Review remaining work and carry it forward (#45, #49, #64)
+    58  Final standalone/imported-workflow verification (#43, #45, #48–#50,
+        #57, #62, #64)
+
+Trackers — close only after their eligible children merge
+
+    38  Task/planning model, persistence, and feasible timing
+    42  Local task entry, breakdown, preview, and import
+    46  Flexible task execution within the focus rhythm
+    55  Test tools and end-to-end verification
+
+Deferred outside v0.3
+
+    44  Landmark graph
+    51  Task-clearer umbrella
+    52  Nested rapid-fire schedule
+    53  Rapid-fire runtime
+    54  Standing task-clearer slot

@@ -14,7 +14,7 @@ behavior under review.
 | --- | --- | --- | --- |
 | **Start test** | A rhythm built from 20-second blocks | Controls, transitions, labels, persistence across a handful of blocks | Anything depending on realistic ratios — warning thresholds, extension caps, percentage-based behavior |
 | **Scaled clock** | A production-shaped rhythm run at 10×–120× | A full day's arc, day end, planned-versus-actual, long-break exit ramp at real proportions | Anything spanning more than one day |
-| **Date travel + fixtures** | Jump the app's notion of today; load a plan in a known state | Landmark pressure, replan carry-forward, a 10-day horizon, day 4 and day 14 behavior | Anything about pacing or feel |
+| **Date travel + fixtures** | Jump the app's notion of today; load a plan in a known state | Deadline feasibility, imported-week carryover, day 4 and day 14 behavior | Anything about pacing or feel |
 
 Two standing cautions. Under a scaled clock, local notifications still fire on real
 wall-clock time, so notification reconciliation must be verified at 1× or through the
@@ -63,6 +63,27 @@ and planned-versus-actual summary totals.
 6. Let the planned day finish in accelerated time. Confirm the summary's planned and
    actual focus totals describe the production day rather than the real minutes spent.
 7. Return the clock to **1×** before normal use or notification testing.
+
+## Date travel and task fixtures (#57)
+
+Use a debug build. The bottom debug strip has **‹ Day**, **Day ›**, and **Today**;
+it is absent from release builds. Its fixture menu deliberately asks for confirmation
+because loading a fixture replaces the saved task catalog, focus sessions, water logs,
+and any active or stopped run.
+
+1. Choose **Load debug fixture** → **Local-only day 1**, confirm replacement, and
+   verify the date becomes September 28, 2026. Check that the fixture includes an
+   unknown-effort task plus child work that both uses and adds to a parent estimate.
+2. Tap **Day ›** three times and then ten more times. The travelled dates should be
+   day 4 and day 14, while the seeded partial/completed focus and water entries remain
+   on their respective dates.
+3. Return to day 1, load **Imported + local day 1**, and confirm the imported meeting,
+   work segments, local child, added local child, unknown-effort task, reorder, and
+   deferral are present in the persisted catalog.
+4. Quit and relaunch. Confirm the loaded task catalog persists, then use the date
+   controls to revisit the fixture dates. Return to **Today** and set the clock to
+   **1×** before notification checks. Fixtures do not make local notifications
+   representative of date travel.
 
 ## Named soft-landings
 
@@ -154,3 +175,59 @@ Use **Start test** so the named remainder is easy to verify.
 2. In the final 10% of a long break, confirm **Add time** appears. Use it once and
    confirm the next focus block begins after the added grace time while the day still
    ends at its planned time.
+
+## Task model review (#39)
+
+There is no phone screen for this yet. This review checks the rules that the later
+task-entry screen will use. The sample is in
+[weekly-plan-v1.json](examples/weekly-plan-v1.json).
+
+Read this one example:
+
+- **Literature review** is an imported task with **2.5 hours** of work left.
+- You discover **Review X**, a new one-hour piece of that work.
+- You choose **Use existing estimate**. That means Review X is part of the original
+  2.5 hours, rather than extra work.
+- The app records Literature review as **1.5 hours** left and Review X as **1 hour**.
+  Together, they still equal **2.5 hours**.
+
+The other choice is **Add to estimate**. In that case, Literature review stays at
+2.5 hours and Review X adds another hour, for **3.5 hours total**.
+
+Check that these rules feel right:
+
+1. A task can be created in the app without Notion, a date, or an estimate.
+2. A child task can use part of its parent's estimate or add more work to it.
+3. If the parent has no estimate, a child can still be linked to it. The app should say
+   that the total is unknown instead of making up a number.
+4. Imported tasks and locally created tasks can appear together. A later re-import must
+   not remove a child that was created locally.
+5. After task entry and import screens land, create a parent and local child, reorder
+   them, leave one unfinished, relaunch, and preview a refreshed source plan. Confirm
+   the local child, its remaining estimate, and the queue order remain intact; a changed
+   source estimate must be shown for review rather than silently replacing local work.
+
+The automated tests also cover an example meeting, suggested work times, task order,
+postponing a task, and recorded focus time. Those details matter to the data model, but
+they are not needed to decide whether the child-task behavior above makes sense.
+
+## Planned v0.3 verification coverage
+
+These are acceptance targets for features not implemented yet. Each implementation
+issue must turn the applicable target into a short runnable scenario with actual UI
+labels; #58 audits the complete workflow after the features land.
+
+| Coverage | Mechanism | Issue |
+| --- | --- | --- |
+| Reviewed weekly import and reimport with local progress/conflicts | Synthetic JSON fixture and normal UI | #40, #43 |
+| Fixed versus suggested placement, late start, multiple available windows | Scaled clock + fixtures; notifications at 1× | #62, #41, #45 |
+| Grading needs 30 more minutes while the 50/10/60 cadence stays intact | Scaled clock | #63, #49 |
+| Insert ten-minute email, attribute its work, resume grading without resetting focus | Scaled clock; relaunch during interruption | #63, #64 |
+| Reorder, postpone A, pick B, and let A return with a deadline explanation | Fixtures + interaction at normal speed | #47, #49 |
+| Finish three hours early or need five extra hours; show honest overflow | Scaled clock + fixtures | #41, #45, #50 |
+| End early, relaunch, carry revised unfinished work into tomorrow/next week | Date travel + fixtures | #40, #50, #57 |
+
+Final review must confirm that optional categories do not require quotas, task choices
+do not consume breaks, and estimate expiry does not mark a task complete. Verify the
+default focus screen stays readable in about two seconds. Pure queue and capacity
+calculations belong in unit tests; manual checks focus on user-visible behavior.
