@@ -48,6 +48,87 @@ enum DailyRhythmValidationError: Error, Equatable, LocalizedError {
 }
 
 struct DailyScheduleGenerator {
+    /// Generates a start-now cadence constrained to the supplied work windows. Fixed
+    /// commitments are inserted as anchored intervals, so neither focus nor breaks
+    /// can cross them. Supplying no planning data preserves the rhythm-only path.
+    func generateStartingNow(
+        rhythm: DailyRhythm,
+        at now: Date,
+        endCondition: RunEndCondition,
+        availability: [PlanTimeRange]?,
+        fixedCommitments: [FixedCommitment],
+        calendar: Calendar
+    ) throws -> GeneratedDailySchedule {
+        let base = try generateStartingNow(rhythm: rhythm, at: now, endCondition: endCondition, calendar: calendar)
+        guard availability != nil || !fixedCommitments.isEmpty else { return base }
+
+        let end = base.dayEnd
+        let windows = (availability ?? [PlanTimeRange(start: now, end: end)])
+            .compactMap { range -> PlanTimeRange? in
+                let start = max(range.start, now)
+                let finish = min(range.end, end)
+                return start < finish ? PlanTimeRange(start: start, end: finish) : nil
+            }
+            .sorted { $0.start < $1.start }
+        let commitments = fixedCommitments
+            .filter { $0.time.end > now && $0.time.start < end }
+            .sorted { $0.time.start < $1.time.start }
+
+        var intervals: [ScheduledInterval] = []
+        var cursor = now
+        var cadenceIndex = 0
+        var sessionCount = 0
+        var windowIndex = 0
+
+        func nextBoundary(after date: Date) -> Date? {
+            commitments.first(where: { $0.time.start >= date })?.time.start
+        }
+        func activeWindow(at date: Date) -> PlanTimeRange? {
+            while windowIndex < windows.count && windows[windowIndex].end <= date { windowIndex += 1 }
+            guard windowIndex < windows.count else { return nil }
+            return windows[windowIndex]
+        }
+
+        while cursor < end, let window = activeWindow(at: cursor) ?? windows.first(where: { $0.start > cursor }) {
+            if cursor < window.start { cursor = window.start }
+            if let commitment = commitments.first(where: { $0.time.start <= cursor && cursor < $0.time.end }) {
+                cursor = commitment.time.end
+                continue
+            }
+            let boundary = min(window.end, nextBoundary(after: cursor) ?? end, end)
+            guard cursor < boundary else { cursor = boundary; continue }
+
+            let isFocus = cadenceIndex % 2 == 0
+            let nominal: TimeInterval
+            let kind: ScheduledIntervalKind
+            if isFocus {
+                nominal = rhythm.workDuration
+                kind = .focus
+            } else {
+                let long = sessionCount == rhythm.sessionsBeforeLongBreak
+                nominal = long ? rhythm.longBreakDuration : rhythm.shortBreakDuration
+                kind = long ? .longBreak(name: "Long break") : .shortBreak
+            }
+            let duration = min(nominal, boundary.timeIntervalSince(cursor))
+            intervals.append(ScheduledInterval(kind: kind, startDate: cursor, endDate: cursor.addingTimeInterval(duration), isAnchored: false))
+            cursor = cursor.addingTimeInterval(duration)
+            if isFocus { sessionCount += 1 }
+            if duration == nominal {
+                cadenceIndex += 1
+                if !isFocus && sessionCount == rhythm.sessionsBeforeLongBreak { sessionCount = 0 }
+            }
+        }
+
+        for commitment in commitments {
+            let start = max(commitment.time.start, now)
+            let finish = min(commitment.time.end, end)
+            guard start < finish else { continue }
+            intervals.append(ScheduledInterval(kind: .longBreak(name: commitment.title), startDate: start, endDate: finish, isAnchored: true, label: "Fixed commitment"))
+        }
+        intervals.sort { $0.startDate < $1.startDate }
+        return GeneratedDailySchedule(rhythmName: rhythm.name, dayStart: now, dayEnd: end, intervals: intervals)
+    }
+
     func generate(
         rhythm: DailyRhythm,
         for date: Date,

@@ -21,6 +21,7 @@ final class RhythmSetupViewModel {
 
     private let store: RhythmLibraryStoring
     private let activeRunStore: ActiveRunStoring
+    private let planStore: WeeklyPlanStoring
     private let generator: DailyScheduleGenerator
     private let calendar: Calendar
     private let now: () -> Date
@@ -32,12 +33,14 @@ final class RhythmSetupViewModel {
     init(
         store: RhythmLibraryStoring = UserDefaultsRhythmLibraryStore(),
         activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
+        planStore: WeeklyPlanStoring = UserDefaultsWeeklyPlanStore(),
         generator: DailyScheduleGenerator = DailyScheduleGenerator(),
         calendar: Calendar = .current,
         now: @escaping () -> Date = Date.init
     ) {
         self.store = store
         self.activeRunStore = activeRunStore
+        self.planStore = planStore
         self.generator = generator
         self.calendar = calendar
         self.now = now
@@ -230,6 +233,8 @@ final class RhythmSetupViewModel {
                 rhythm: draft,
                 at: now(),
                 endCondition: selectedEndCondition,
+                availability: planningAvailability(at: now()),
+                fixedCommitments: planningCommitments(at: now()),
                 calendar: calendar
             )
             validationMessage = nil
@@ -249,6 +254,8 @@ final class RhythmSetupViewModel {
                 rhythm: draft,
                 at: startedAt,
                 endCondition: selectedEndCondition,
+                availability: planningAvailability(at: startedAt),
+                fixedCommitments: planningCommitments(at: startedAt),
                 calendar: calendar
             )
             let run = ActiveRhythmRun(
@@ -364,6 +371,20 @@ final class RhythmSetupViewModel {
             return .stopAt(stopAt)
         case .focusFor:
             return .focusFor(focusTarget)
+        }
+    }
+
+    private func planningAvailability(at date: Date) -> [PlanTimeRange]? {
+        guard let plan = planStore.load(), let availability = plan.availability else { return nil }
+        return availability.first { $0.day == Self.dateKey(for: date, calendar: calendar) }?.windows
+    }
+
+    private func planningCommitments(at date: Date) -> [FixedCommitment] {
+        guard let plan = planStore.load() else { return [] }
+        let bounds = calendar.dateInterval(of: .day, for: date)
+        return plan.fixedCommitments.filter { commitment in
+            guard let bounds else { return false }
+            return commitment.time.end > bounds.start && commitment.time.start < bounds.end
         }
     }
 
