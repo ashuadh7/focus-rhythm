@@ -59,6 +59,16 @@ private struct AppEntryView: View {
 
     @ViewBuilder
     private var content: some View {
+        TabView {
+            focusSurface
+                .tabItem { Label("Focus", systemImage: "timer") }
+            TasksWorkspaceView()
+                .tabItem { Label("Tasks", systemImage: "checklist") }
+        }
+    }
+
+    @ViewBuilder
+    private var focusSurface: some View {
         if let activeRun {
             TimerHomeView(
                 run: activeRun,
@@ -158,6 +168,189 @@ private struct AppEntryView: View {
         }
     }
 #endif
+}
+
+/// Planning lives on its own tab so the Focus surface can stay deliberately small.
+private struct TasksWorkspaceView: View {
+    @State private var plan: WeeklyPlan?
+    @State private var editingTask: PlannedTask?
+    @State private var isAddingTask = false
+    @State private var message: String?
+    private let store: WeeklyPlanStoring
+
+    init(store: WeeklyPlanStoring = UserDefaultsWeeklyPlanStore()) {
+        self.store = store
+        _plan = State(initialValue: store.load())
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let plan, !plan.tasks.isEmpty {
+                    ForEach(EisenhowerQuadrant.allCases) { quadrant in
+                        let tasks = plan.tasks.filter { classification(for: $0).quadrant == quadrant }
+                        Section(quadrant.title) {
+                            if tasks.isEmpty {
+                                Text("No tasks").foregroundStyle(.secondary)
+                            }
+                            ForEach(tasks) { task in
+                                Button { editingTask = task } label: { taskRow(task) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    if !plan.localState.carryoverTaskIDs.isEmpty {
+                        Section("Carryover") {
+                            Text("Carryover remains separate from the active queue until you deliberately bring it back.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "No tasks yet", systemImage: "checklist",
+                        description: Text("Add work here. Focus will select only eligible tasks when a run starts.")
+                    )
+                }
+                if let message {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red).font(.footnote)
+                }
+            }
+            .navigationTitle("Tasks")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Add task", systemImage: "plus") { isAddingTask = true }
+                }
+            }
+            .onAppear { reload() }
+            .sheet(isPresented: $isAddingTask) {
+                TaskPlanningEditor(task: nil, classification: .default) { title, estimate, classification in
+                    addTask(title: title, estimate: estimate, classification: classification)
+                }
+            }
+            .sheet(item: $editingTask) { task in
+                TaskPlanningEditor(task: task, classification: classification(for: task)) { title, estimate, classification in
+                    update(task: task, title: title, estimate: estimate, classification: classification)
+                }
+            }
+        }
+    }
+
+    private func classification(for task: PlannedTask) -> TaskClassification {
+        plan?.localState.classifications[task.id] ?? .default
+    }
+
+    private func taskRow(_ task: PlannedTask) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(task.title).font(.body.weight(.medium))
+            Text(details(for: task)).font(.caption).foregroundStyle(.secondary)
+            if let parentID = task.parentTaskID,
+               let parent = plan?.tasks.first(where: { $0.id == parentID }) {
+                Text("Part of \(parent.title)").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func details(for task: PlannedTask) -> String {
+        let classification = classification(for: task)
+        var values = [classification.workKind.title, classification.planningState.title]
+        values.append(task.remainingEstimateSeconds.map(duration) ?? "Time unknown")
+        if let deadline = task.deadline { values.append("Due \(deadline.formatted(date: .abbreviated, time: .omitted))") }
+        if classification.planningState == .conditionalTask && !classification.isConditionReady {
+            values.append("Waiting")
+        }
+        return values.joined(separator: " · ")
+    }
+
+    private func duration(_ seconds: TimeInterval) -> String {
+        let minutes = max(0, Int((seconds / 60).rounded()))
+        return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+    }
+
+    private func addTask(title: String, estimate: TimeInterval?, classification: TaskClassification) {
+        do {
+            var updated = plan ?? WeeklyPlan(id: UUID().uuidString, tasks: [])
+            let id = try updated.addLocalTask(title: title, estimateSeconds: estimate)
+            try updated.setClassification(classification, for: id)
+            try store.save(updated)
+            plan = updated
+            isAddingTask = false
+        } catch { message = error.localizedDescription }
+    }
+
+    private func update(task: PlannedTask, title: String, estimate: TimeInterval?, classification: TaskClassification) {
+        do {
+            guard var updated = plan else { return }
+            if task.sourceID == nil {
+                try updated.editLocalTask(task.id, title: title, estimateSeconds: estimate,
+                                          deadline: task.deadline, project: task.project,
+                                          context: task.context, categoryTags: task.categoryTags,
+                                          parentID: task.parentTaskID, accounting: task.parentEstimateAccounting)
+            }
+            try updated.setClassification(classification, for: task.id)
+            try store.save(updated)
+            plan = updated
+            editingTask = nil
+        } catch { message = error.localizedDescription }
+    }
+
+    private func reload() { plan = store.load() }
+}
+
+private struct TaskPlanningEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var minutes: String
+    @State private var classification: TaskClassification
+    private let isLocalTask: Bool
+    let save: (String, TimeInterval?, TaskClassification) -> Void
+
+    init(task: PlannedTask?, classification: TaskClassification,
+         save: @escaping (String, TimeInterval?, TaskClassification) -> Void) {
+        _title = State(initialValue: task?.title ?? "")
+        _minutes = State(initialValue: task?.remainingEstimateSeconds.map { String(Int($0 / 60)) } ?? "")
+        _classification = State(initialValue: classification)
+        isLocalTask = task?.sourceID == nil
+        self.save = save
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if isLocalTask {
+                    TextField("What needs doing?", text: $title)
+                    TextField("Estimated minutes (optional)", text: $minutes).keyboardType(.numberPad)
+                } else {
+                    LabeledContent("Imported task", value: title)
+                    Text("Source-owned task details stay intact; classification is your local planning choice.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("Classify") {
+                    Picker("Eisenhower quadrant", selection: $classification.quadrant) {
+                        ForEach(EisenhowerQuadrant.allCases) { Text($0.title).tag($0) }
+                    }
+                    Picker("Work kind", selection: $classification.workKind) {
+                        ForEach(TaskWorkKind.allCases) { Text($0.title).tag($0) }
+                    }
+                    Picker("Planning state", selection: $classification.planningState) {
+                        ForEach(TaskPlanningState.allCases) { Text($0.title).tag($0) }
+                    }
+                    if classification.planningState == .conditionalTask {
+                        Toggle("Condition is ready", isOn: $classification.isConditionReady)
+                    }
+                }
+            }
+            .navigationTitle("Task details")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        save(title, Double(minutes.trimmingCharacters(in: .whitespacesAndNewlines)).map { $0 * 60 }, classification)
+                    }.disabled(isLocalTask && title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
 }
 
 private struct StoppedRunReviewView: View {

@@ -82,6 +82,15 @@ the countdown must continue, and the next suggestion must remain available. Add 
 urgent task with **Do now**, relaunch, then resume the interrupted task. Complete or
 abandon a task while it is interrupted and confirm it is no longer offered to resume.
 
+## Tasks workspace and Eisenhower board (#75)
+
+Open **Tasks** and add work in more than one Eisenhower quadrant. Edit a task's work
+kind and planning state, then move it between quadrants; confirm its title, estimate,
+deadline, hierarchy, actual focused work, and carryover status remain unchanged. Mark
+a grading task as conditional and not ready: it must stay visible in Tasks but must
+not be selected automatically by Focus. Switch to **Focus** during a running block
+and confirm it offers only execution controls, not task editing or queue setup.
+
 ## Child-task breakdown (#68)
 
 On **Choose today’s rhythm**, add a parent task with **150 minutes** remaining. Add a

@@ -180,6 +180,9 @@ extension WeeklyPlan {
         for (index, taskID) in localState.interruptedTaskIDs.enumerated() {
             try require(taskIDs.contains(taskID), "localState.interruptedTaskIDs[\(index)]", "Interrupted task must be known.")
         }
+        for taskID in localState.classifications.keys {
+            try require(taskIDs.contains(taskID), "localState.classifications", "Classification must reference a known task.")
+        }
         try unique(localState.carryoverTaskIDs, "localState.carryoverTaskIDs")
         for (index, taskID) in localState.carryoverTaskIDs.enumerated() {
             try require(taskIDs.contains(taskID), "localState.carryoverTaskIDs[\(index)]", "Unknown task '\(taskID)'.")

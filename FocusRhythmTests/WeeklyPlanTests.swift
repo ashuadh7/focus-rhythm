@@ -40,6 +40,25 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(plan.tasks.first { $0.id == zero }).needsEstimateRevision)
     }
 
+    func testConditionalTaskIsVisibleButUnavailableUntilReady() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [
+            makeTask(id: "grading", title: "Grade assignments", estimate: nil)
+        ])
+        try plan.setClassification(TaskClassification(
+            quadrant: .urgentImportant, workKind: .grading,
+            planningState: .conditionalTask, isConditionReady: false
+        ), for: "grading")
+
+        XCTAssertTrue(plan.taskQueue(at: now).selectableTasks.isEmpty)
+        XCTAssertEqual(try WeeklyPlanJSON.decode(WeeklyPlanJSON.encode(plan)), plan)
+
+        try plan.setClassification(TaskClassification(
+            quadrant: .urgentImportant, workKind: .grading,
+            planningState: .conditionalTask, isConditionReady: true
+        ), for: "grading")
+        XCTAssertEqual(plan.taskQueue(at: now).suggestedTask?.id, "grading")
+    }
+
     func testUrgentTaskPreservesAndResumesInterruptedTaskAcrossRoundTrip() throws {
         var plan = WeeklyPlan(id: "local-tasks", tasks: [
             makeTask(id: "grading", title: "Grading", estimate: 3_600),

@@ -4,12 +4,10 @@ struct TimerHomeView: View {
     @State private var viewModel: FocusTimerViewModel
     @State private var waterLoggingViewModel: WaterLoggingViewModel
     @State private var isShowingSummary = false
-    @State private var isShowingTodayFlow = false
     @State private var holdProgress: CGFloat = 0
     @State private var holdTimer: Timer?
     @State private var pickerDuration: TimeInterval = FocusTimerViewModel.defaultBreakDuration
     @State private var endCycleReasoning = ""
-    @State private var isShowingTaskActions = false
     @Environment(\.scenePhase) private var scenePhase
     private let onEndDay: () -> Void
     private let clock: AppClock
@@ -57,12 +55,6 @@ struct TimerHomeView: View {
             .sheet(isPresented: $isShowingSummary) {
                 DailySummaryView(now: { clock.now })
             }
-            .sheet(isPresented: $isShowingTodayFlow) {
-                TodayFlowView(clock: clock)
-            }
-            .sheet(isPresented: $isShowingTaskActions) {
-                TaskAdjustmentsView(viewModel: viewModel)
-            }
             .sheet(isPresented: Binding(
                 get: { viewModel.isSelectingBreakDuration },
                 set: { if !$0 { viewModel.cancelBreakSelection() } }
@@ -85,12 +77,6 @@ struct TimerHomeView: View {
                 if phase == .completedDay {
                     isShowingSummary = true
                 }
-                if (phase == .break || phase == .shortBreak || phase.isLongBreak),
-                   viewModel.taskQueue?.selectableTasks.isEmpty == false {
-                    // Breaks are the calm default moment for these small choices.
-                    // Dismissing the sheet keeps the break running normally.
-                    isShowingTaskActions = true
-                }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
@@ -101,17 +87,6 @@ struct TimerHomeView: View {
 
     private var content: some View {
         VStack(spacing: 32) {
-            HStack {
-                Button("Tasks") { isShowingTaskActions = true }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Today") { isShowingTodayFlow = true }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 32)
-
 #if DEBUG
             if clock.rate != 1 {
                 Text("Running at \(Int(clock.rate))×")
