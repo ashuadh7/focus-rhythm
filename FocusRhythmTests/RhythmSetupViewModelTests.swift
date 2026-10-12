@@ -38,6 +38,31 @@ final class RhythmSetupViewModelTests: XCTestCase {
         XCTAssertEqual(activeRunStore.run, run)
     }
 
+    func testStartingRunSelectsTheBestEligibleTaskWhenNothingIsSelected() {
+        let context = makeContext(hour: 9)
+        let rhythm = RhythmVariation(rhythm: makeRhythm(name: "Focus"))
+        let libraryStore = MemoryRhythmLibraryStore(RhythmLibrary(
+            variations: [rhythm], defaultVariationID: rhythm.id,
+            plannedSelections: [], activeRun: nil
+        ))
+        let planStore = MemoryWeeklyPlanStore(WeeklyPlan(id: "tasks", tasks: [
+            PlannedTask(id: "first", sourceID: nil, title: "First", originalEstimateSeconds: nil,
+                        remainingEstimateSeconds: nil, completedAt: nil, order: 0, deadline: nil,
+                        prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil,
+                        project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: []),
+            PlannedTask(id: "second", sourceID: nil, title: "Second", originalEstimateSeconds: nil,
+                        remainingEstimateSeconds: nil, completedAt: nil, order: 1, deadline: nil,
+                        prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil,
+                        project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: [])
+        ]))
+        let viewModel = RhythmSetupViewModel(
+            store: libraryStore, planStore: planStore, calendar: context.calendar, now: { context.now }
+        )
+
+        XCTAssertNotNil(viewModel.startNow())
+        XCTAssertEqual(planStore.plan?.localState.selectedTaskID, "first")
+    }
+
     func testTodaysPlanIsOfferedBeforeDefault() {
         let context = makeContext()
         let planned = RhythmVariation(rhythm: makeRhythm(name: "Planned"))
@@ -281,6 +306,16 @@ final class RhythmSetupViewModelTests: XCTestCase {
     ) -> RhythmSetupViewModel {
         RhythmSetupViewModel(store: store, calendar: context.calendar, now: { context.now })
     }
+}
+
+private final class MemoryWeeklyPlanStore: WeeklyPlanStoring {
+    var plan: WeeklyPlan?
+
+    init(_ plan: WeeklyPlan?) { self.plan = plan }
+
+    func load() -> WeeklyPlan? { plan }
+    func save(_ plan: WeeklyPlan) throws { self.plan = plan }
+    func clear() { plan = nil }
 }
 
 private struct TestContext {

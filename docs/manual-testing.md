@@ -72,6 +72,16 @@ and one without one, then use **Start test**.
    not credited to either task. Quit and reopen before a later block completes, then
    confirm previously recorded task work is present exactly once.
 
+## Focus execution reliability (#74)
+
+With a saved queue whose first task is eligible, start **Start test**. Confirm that
+task is already selected when the first focus block appears; repeat with only blocked,
+completed, abandoned, deferred, or estimate-revision tasks and confirm no task is
+selected. During a block, mark the task done twice: the second tap must be harmless,
+the countdown must continue, and the next suggestion must remain available. Add an
+urgent task with **Do now**, relaunch, then resume the interrupted task. Complete or
+abandon a task while it is interrupted and confirm it is no longer offered to resume.
+
 ## Child-task breakdown (#68)
 
 On **Choose today’s rhythm**, add a parent task with **150 minutes** remaining. Add a
