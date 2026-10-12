@@ -104,7 +104,13 @@ extension WeeklyPlan {
         for (index, task) in source.tasks.enumerated() where task.sourceID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
             throw PlanValidationError(path: "tasks[\(index)].sourceID", message: "Imported tasks need a stable sourceID; matching by title is unsafe.")
         }
-        guard source.localState == PlanLocalState() else {
+        // A source may propose first-import classification, but queue choice,
+        // progress, hierarchy adjustments, and every other local decision remain
+        // app-owned. Refreshes below deliberately retain the saved map instead.
+        let proposedClassifications = source.localState.classifications
+        var sourceWithoutClassification = source
+        sourceWithoutClassification.localState.classifications = [:]
+        guard sourceWithoutClassification.localState == PlanLocalState() else {
             throw PlanValidationError(path: "localState", message: "Import files describe proposed work only. Remove app-owned queue, work-history, and estimate-adjustment state.")
         }
 
@@ -154,6 +160,12 @@ extension WeeklyPlan {
         }
         merged.fixedCommitments = source.fixedCommitments + retainedCommitments
         merged.localState = localState
+        for (sourceTaskID, classification) in proposedClassifications {
+            let taskID = remappedIDs[sourceTaskID] ?? sourceTaskID
+            if merged.localState.classifications[taskID] == nil {
+                merged.localState.classifications[taskID] = classification
+            }
+        }
         let oldUnfinished = tasks.filter { $0.completedAt == nil && $0.abandonedAt == nil }.map(\.id)
         merged.localState.carryoverTaskIDs = Array(Set(localState.carryoverTaskIDs).union(oldUnfinished)).sorted()
         if let selected = merged.localState.selectedTaskID, merged.localState.carryoverTaskIDs.contains(selected) {
