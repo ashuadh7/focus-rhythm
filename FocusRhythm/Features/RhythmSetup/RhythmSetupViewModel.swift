@@ -234,6 +234,50 @@ final class RhythmSetupViewModel {
         taskQueue = planStore.load()?.taskQueue(at: now())
     }
 
+    @discardableResult
+    func createLocalTask(
+        title: String, estimateSeconds: TimeInterval?, deadline: Date? = nil,
+        project: String? = nil, context: String? = nil, categoryTags: [String] = []
+    ) -> Bool {
+        do {
+            var plan = planStore.load() ?? WeeklyPlan(id: UUID().uuidString, tasks: [])
+            _ = try plan.addLocalTask(
+                title: title, estimateSeconds: estimateSeconds, deadline: deadline,
+                project: project, context: context, categoryTags: categoryTags, recordedAt: now()
+            )
+            try planStore.save(plan)
+            taskQueueMessage = nil
+            refreshTaskQueue()
+            return true
+        } catch {
+            taskQueueMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func abandonLocalTask(_ taskID: String) {
+        updateTaskQueue { plan in try plan.abandonLocalTask(taskID, at: now()) }
+    }
+
+    @discardableResult
+    func editLocalTask(
+        _ taskID: String, title: String, estimateSeconds: TimeInterval?, deadline: Date?,
+        project: String?, context: String?, categoryTags: [String]
+    ) -> Bool {
+        do {
+            guard var plan = planStore.load() else { return false }
+            try plan.editLocalTask(taskID, title: title, estimateSeconds: estimateSeconds, deadline: deadline,
+                                   project: project, context: context, categoryTags: categoryTags)
+            try planStore.save(plan)
+            taskQueueMessage = nil
+            refreshTaskQueue()
+            return true
+        } catch {
+            taskQueueMessage = error.localizedDescription
+            return false
+        }
+    }
+
     func selectQueuedTask(_ taskID: String) {
         updateTaskQueue { plan in try plan.selectTask(taskID) }
     }

@@ -284,6 +284,23 @@ the **Task queue** section.
 5. Use the mixed-origin fixture too. Confirm imported and local child tasks appear in
    one queue and can be selected or postponed the same way.
 
+## Create local tasks (#67)
+
+On **Choose today’s rhythm**, open **Task queue** and choose **Add task**.
+
+1. Create **Draft outline** with a 45-minute estimate, a project, and one tag. Create
+   **Investigate** with no estimate. Confirm both appear in the same queue and that
+   the second one says **Time unknown** rather than appearing complete.
+2. Choose one task, start a rhythm, then quit and relaunch. Confirm the tasks and the
+   selected queue item remain available.
+3. Add a task while a rhythm is active. Confirm it joins the queue; do not expect the
+   running focus interval to switch automatically.
+4. From a local task’s options, choose **Abandon task**. Confirm it leaves the active
+   queue without marking it complete. Postpone a different task and confirm it stays
+   active and returns under **Not now** instead.
+5. Load the mixed-origin fixture, add one local task, then reload/import the fixture.
+   Confirm the local task remains alongside imported work.
+
 ## Planned v0.3 verification coverage
 
 These are acceptance targets for features not implemented yet. Each implementation

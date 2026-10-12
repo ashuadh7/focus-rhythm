@@ -16,6 +16,53 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertEqual(try WeeklyPlanJSON.decode(WeeklyPlanJSON.encode(plan)), plan)
     }
 
+    func testLocalTaskCreationUsesStableAppIdentityAndAppendsToQueue() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [])
+        let id = try plan.addLocalTask(title: "  Draft outline  ", estimateSeconds: 45 * 60,
+                                       project: "Essay", categoryTags: ["writing", "  "])
+
+        let task = try XCTUnwrap(plan.tasks.first { $0.id == id })
+        XCTAssertEqual(task.title, "Draft outline")
+        XCTAssertNil(task.sourceID)
+        XCTAssertEqual(task.remainingEstimateSeconds, 45 * 60)
+        XCTAssertEqual(task.project, "Essay")
+        XCTAssertEqual(task.categoryTags, ["writing"])
+        XCTAssertEqual(plan.localState.taskOrder, [id])
+        XCTAssertEqual(try WeeklyPlanJSON.decode(WeeklyPlanJSON.encode(plan)), plan)
+    }
+
+    func testUnknownEffortLocalTaskIsSelectableButZeroEffortRequestsRevision() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [])
+        let unknown = try plan.addLocalTask(title: "Investigate", estimateSeconds: nil)
+        let zero = try plan.addLocalTask(title: "Revise estimate", estimateSeconds: 0)
+
+        XCTAssertEqual(plan.taskQueue(at: now).readyTasks.map(\.id), [unknown])
+        XCTAssertTrue(try XCTUnwrap(plan.tasks.first { $0.id == zero }).needsEstimateRevision)
+    }
+
+    func testEditAndAbandonLocalTaskPreserveHistoryButRemoveItFromQueue() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [])
+        let id = try plan.addLocalTask(title: "Old title", estimateSeconds: nil)
+        try plan.editLocalTask(id, title: "New title", estimateSeconds: 600, deadline: now,
+                               project: "Project", context: "Desk", categoryTags: ["admin"])
+        try plan.abandonLocalTask(id, at: now.addingTimeInterval(60))
+
+        let task = try XCTUnwrap(plan.tasks.first { $0.id == id })
+        XCTAssertEqual(task.title, "New title")
+        XCTAssertEqual(task.remainingEstimateSeconds, 600)
+        XCTAssertNotNil(task.abandonedAt)
+        XCTAssertFalse(plan.taskQueue(at: now).selectableTasks.contains { $0.id == id })
+    }
+
+    func testLocalCreationCanAtomicallyCreateAChildWithParentAccounting() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [makeTask(id: "parent", title: "Parent", estimate: 3_600)])
+        let child = try plan.addLocalTask(title: "Child", estimateSeconds: 600, parentID: "parent", accounting: .usesParentEstimate, recordedAt: now)
+
+        XCTAssertEqual(task("parent", in: plan).remainingEstimateSeconds, 3_000)
+        XCTAssertEqual(task(child, in: plan).parentTaskID, "parent")
+        XCTAssertEqual(plan.localState.estimateAdjustments.count, 1)
+    }
+
     func testChildUsingExistingEstimateKeepsTotalAtTwoAndAHalfHours() throws {
         var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "literature", title: "Literature review", estimate: 2.5 * 3600)])
 

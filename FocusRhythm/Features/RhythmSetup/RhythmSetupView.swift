@@ -3,6 +3,8 @@ import SwiftUI
 struct RhythmSetupView: View {
     @State private var viewModel: RhythmSetupViewModel
     @State private var isEditing = false
+    @State private var isCreatingTask = false
+    @State private var editingTask: PlannedTask?
     @State private var startedRun: ActiveRhythmRun?
     let onStart: (ActiveRhythmRun) -> Void
 
@@ -21,6 +23,7 @@ struct RhythmSetupView: View {
                         description: Text("Create a reusable rhythm for the shape of your day.")
                     )
                     Button("Create rhythm") { createAndEditVariation() }
+                    taskQueue
                 } else {
                     variationPicker
                     taskQueue
@@ -46,13 +49,28 @@ struct RhythmSetupView: View {
             .sheet(isPresented: $isEditing, onDismiss: viewModel.cancelDraftEditing) {
                 RhythmEditorView(viewModel: viewModel)
             }
+            .sheet(isPresented: $isCreatingTask) {
+                LocalTaskEditor(task: nil) { title, estimate, deadline, project, context, tags in
+                    if viewModel.createLocalTask(title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags) {
+                        isCreatingTask = false
+                    }
+                }
+            }
+            .sheet(item: $editingTask) { task in
+                LocalTaskEditor(task: task) { title, estimate, deadline, project, context, tags in
+                    if viewModel.editLocalTask(task.id, title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags) {
+                        editingTask = nil
+                    }
+                }
+            }
         }
     }
 
     @ViewBuilder
     private var taskQueue: some View {
-        if let queue = viewModel.taskQueue, !queue.selectableTasks.isEmpty {
-            Section {
+        Section {
+            Button("Add task", systemImage: "plus") { isCreatingTask = true }
+            if let queue = viewModel.taskQueue, !queue.selectableTasks.isEmpty {
                 if let suggested = queue.suggestedTask {
                     Text("Suggested next: \(suggested.title)")
                         .font(.subheadline.weight(.semibold))
@@ -75,16 +93,16 @@ struct RhythmSetupView: View {
                     }
                 }
 
-                if let message = viewModel.taskQueueMessage {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-            } header: {
-                Text("Task queue")
-            } footer: {
-                Text("Choose a task for your next focus block, change its priority, or postpone it briefly. Postponing is not completion.")
             }
+            if let message = viewModel.taskQueueMessage {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+        } header: {
+            Text("Task queue")
+        } footer: {
+            Text("Add a task any time. Choose a task for your next focus block, change its priority, or postpone it briefly. Postponing is not completion.")
         }
     }
 
@@ -116,6 +134,10 @@ struct RhythmSetupView: View {
                 }
                 Button("Move earlier") { viewModel.moveQueuedTask(task.id, by: -1) }
                 Button("Move later") { viewModel.moveQueuedTask(task.id, by: 1) }
+                if task.sourceID == nil {
+                    Button("Edit task") { editingTask = task }
+                    Button("Abandon task", role: .destructive) { viewModel.abandonLocalTask(task.id) }
+                }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -274,6 +296,59 @@ struct RhythmSetupView: View {
     private func duration(_ interval: TimeInterval) -> String {
         let minutes = Int(interval / 60)
         return minutes >= 60 ? "\(minutes / 60) hr \(minutes % 60) min" : "\(minutes) min"
+    }
+}
+
+private struct LocalTaskEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var estimateMinutes: String
+    @State private var hasDeadline: Bool
+    @State private var deadline: Date
+    @State private var project: String
+    @State private var context: String
+    @State private var tags: String
+    private let isEditing: Bool
+    let save: (String, TimeInterval?, Date?, String?, String?, [String]) -> Void
+
+    init(task: PlannedTask?, save: @escaping (String, TimeInterval?, Date?, String?, String?, [String]) -> Void) {
+        _title = State(initialValue: task?.title ?? "")
+        _estimateMinutes = State(initialValue: task?.remainingEstimateSeconds.map { String(Int($0 / 60)) } ?? "")
+        _hasDeadline = State(initialValue: task?.deadline != nil)
+        _deadline = State(initialValue: task?.deadline ?? Date())
+        _project = State(initialValue: task?.project ?? "")
+        _context = State(initialValue: task?.context ?? "")
+        _tags = State(initialValue: task?.categoryTags.joined(separator: ", ") ?? "")
+        isEditing = task != nil
+        self.save = save
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("What needs doing?", text: $title)
+                TextField("Estimated minutes (optional)", text: $estimateMinutes)
+                    .keyboardType(.numberPad)
+                Toggle("Deadline", isOn: $hasDeadline)
+                if hasDeadline { DatePicker("Due", selection: $deadline) }
+                TextField("Project (optional)", text: $project)
+                TextField("Context (optional)", text: $context)
+                TextField("Tags, separated by commas", text: $tags)
+            }
+            .navigationTitle(isEditing ? "Edit task" : "New task")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isEditing ? "Save" : "Add") {
+                        let minutes = Double(estimateMinutes.trimmingCharacters(in: .whitespacesAndNewlines))
+                        save(title, minutes.map { $0 * 60 }, hasDeadline ? deadline : nil,
+                             project.isEmpty ? nil : project, context.isEmpty ? nil : context,
+                             tags.split(separator: ",").map(String.init))
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
     }
 }
 
