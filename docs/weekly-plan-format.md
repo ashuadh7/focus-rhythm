@@ -31,8 +31,10 @@ Tasks may have a `parentTaskID`. This containment graph is separate from
 | Use existing estimate | `usesParentEstimate` | Parent falls to 1.5 hours; combined known work remains 2.5 hours. |
 | Add to estimate | `addsToParentEstimate` | Parent stays at 2.5 hours; combined known work becomes 3.5 hours. |
 
-The newest matching `localState.estimateAdjustments` record preserves the current choice
-and amount; earlier records remain an audit history.
+The newest matching `localState.estimateAdjustments` record preserves a locally made
+choice and amount; earlier records remain an audit history. A source-owned hierarchy
+may state its accounting choice without a local adjustment record, because importing it
+must not invent a person’s local estimate decision.
 When a parent is unknown, a child may still be linked; the plan remains uncertain rather
 than inventing a parent total. Parent rollups can show descendant work, while global
 remaining and actual totals count every task or segment once. Completing a parent never
@@ -50,6 +52,32 @@ meetings.
 External snapshots can include source IDs, a planning window, allocations, and fixed
 commitments. Reimport must preserve local task IDs, progress, queue decisions, and local
 child decomposition for reviewed conflict handling. Source data never owns a local task.
+
+## Importing a reviewed external plan
+
+FocusRhythm deliberately does not connect directly to Notion or an LLM. Export or
+convert your reviewed planning data into this versioned JSON format, save it somewhere
+the iOS Files picker can reach (for example iCloud Drive), then choose **Import reviewed
+plan** from **Choose today's rhythm**.
+
+An import document is a proposal, not an app backup. Give the document a stable
+catalog `sourceID` and every imported task its own stable `sourceID`; keep those IDs the
+same when refreshing the same plan. Do not include `localState` in a transfer document:
+that section belongs to FocusRhythm and contains queue choices, actual work, and local
+breakdown history. The app rejects an unsafe file with its field path so it can be fixed
+at the conversion step.
+
+The review screen shows supplied tasks, planning context, fixed commitments, descriptive
+updates, changed source estimates, and tasks omitted by a refresh. Applying a refresh
+keeps the local remaining estimate and actual work; revise the estimate deliberately
+afterward if that is the right decision. Cancelling after selecting a file changes
+nothing. A different catalog `sourceID` is a new weekly batch: unfinished earlier work
+goes to **Carryover inbox** instead of silently entering the new queue. Select **Add to
+queue** only for work that belongs in the new week.
+
+`examples/weekly-plan-v1.json` is a persisted-catalog example, including app-owned
+local state, intended for fixtures and model review. A transfer converter should emit
+the same schema fields but omit `localState` and use source IDs for every task.
 
 ## Required and optional fields
 

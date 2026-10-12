@@ -176,6 +176,10 @@ extension WeeklyPlan {
         if let selectedTaskID = localState.selectedTaskID {
             try require(taskIDs.contains(selectedTaskID), "localState.selectedTaskID", "Selected task must be known.")
         }
+        try unique(localState.carryoverTaskIDs, "localState.carryoverTaskIDs")
+        for (index, taskID) in localState.carryoverTaskIDs.enumerated() {
+            try require(taskIDs.contains(taskID), "localState.carryoverTaskIDs[\(index)]", "Unknown task '\(taskID)'.")
+        }
         try unique(localState.estimateAdjustments.map { $0.id.uuidString }, "localState.estimateAdjustments.id")
         var latestAdjustmentByChild = [String: TaskEstimateAdjustment]()
         for (index, adjustment) in localState.estimateAdjustments.enumerated() {
@@ -190,6 +194,10 @@ extension WeeklyPlan {
         }
         for task in tasks where task.parentTaskID != nil {
             guard let adjustment = latestAdjustmentByChild[task.id] else {
+                // A source-owned hierarchy can be proposed without pretending that
+                // it is a local estimate decision. Locally created children always
+                // require an auditable accounting record.
+                if task.sourceID != nil { continue }
                 throw PlanValidationError(path: "tasks.parentTaskID", message: "A child requires an estimate-accounting record.")
             }
             try require(adjustment.parentTaskID == task.parentTaskID && adjustment.accounting == task.parentEstimateAccounting,

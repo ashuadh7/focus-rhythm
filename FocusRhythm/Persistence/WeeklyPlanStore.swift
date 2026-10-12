@@ -69,6 +69,22 @@ enum PlanStoreError: Error, Equatable, LocalizedError {
 struct WeeklyPlanImportPreview: Equatable {
     var mergedPlan: WeeklyPlan
     var conflicts: [WeeklyPlanImportConflict]
+    var mode: WeeklyPlanImportMode
+    var addedTaskIDs: [String]
+    var changedDescriptionTaskIDs: [String]
+    var sourceEstimateChanges: [String: SourceEstimateComparison]
+}
+
+struct SourceEstimateComparison: Equatable {
+    var sourceOriginalSeconds: TimeInterval?
+    var sourceRemainingSeconds: TimeInterval?
+    var localRemainingSeconds: TimeInterval?
+    var actualWorkSeconds: TimeInterval
+}
+
+enum WeeklyPlanImportMode: Equatable {
+    case newWeeklyBatch
+    case refreshCurrentPlan
 }
 
 enum WeeklyPlanImportConflict: Equatable {
@@ -77,6 +93,85 @@ enum WeeklyPlanImportConflict: Equatable {
 }
 
 extension WeeklyPlan {
+    /// Stages an external transfer document. An external source is a proposal, not
+    /// a backup of app state: stable source IDs are required so a later refresh can
+    /// reconcile by identity instead of guessing from a repeated title.
+    func previewingExternalImport(_ source: WeeklyPlan) throws -> WeeklyPlanImportPreview {
+        try source.validate()
+        guard source.sourceID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            throw PlanValidationError(path: "sourceID", message: "An imported plan needs a stable sourceID so a refresh can be reviewed safely.")
+        }
+        for (index, task) in source.tasks.enumerated() where task.sourceID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            throw PlanValidationError(path: "tasks[\(index)].sourceID", message: "Imported tasks need a stable sourceID; matching by title is unsafe.")
+        }
+        guard source.localState == PlanLocalState() else {
+            throw PlanValidationError(path: "localState", message: "Import files describe proposed work only. Remove app-owned queue, work-history, and estimate-adjustment state.")
+        }
+
+        if source.sourceID == sourceID {
+            return try previewingImport(source)
+        }
+
+        try validate()
+        let existingSourceIDs = Set(tasks.compactMap(\.sourceID))
+        let incomingSourceIDs = Set(source.tasks.compactMap(\.sourceID))
+        let overlappingSourceIDs = existingSourceIDs.intersection(incomingSourceIDs)
+        guard overlappingSourceIDs.isEmpty else {
+            throw PlanValidationError(path: "sourceID", message: "This file identifies a new weekly source but reuses existing task sourceIDs. Refresh the original source, or give the replacement tasks new stable identities.")
+        }
+        let currentIDs = Set(tasks.map(\.id))
+        var remappedIDs: [String: String] = [:]
+        var incomingTasks = source.tasks
+        for index in incomingTasks.indices {
+            let oldID = incomingTasks[index].id
+            let newID = currentIDs.contains(oldID) ? UUID().uuidString : oldID
+            remappedIDs[oldID] = newID
+            incomingTasks[index].id = newID
+        }
+        for index in incomingTasks.indices {
+            incomingTasks[index].parentTaskID = incomingTasks[index].parentTaskID.flatMap { remappedIDs[$0] ?? $0 }
+            incomingTasks[index].prerequisiteTaskIDs = incomingTasks[index].prerequisiteTaskIDs.map { remappedIDs[$0] ?? $0 }
+        }
+
+        var merged = source
+        var priorTasks = tasks
+        // Source ordering is only a first-import suggestion. Old source tasks now
+        // live in carryover, so retaining their source order could collide with a
+        // new snapshot's independent order values.
+        for index in priorTasks.indices where priorTasks[index].sourceID != nil {
+            priorTasks[index].order = nil
+        }
+        merged.tasks = priorTasks + incomingTasks
+        merged.allocations = source.allocations.map { allocation in
+            var remapped = allocation
+            remapped.taskID = remappedIDs[allocation.taskID] ?? allocation.taskID
+            return remapped
+        }
+        var retainedCommitments = fixedCommitments.filter { $0.sourceID == nil }
+        let incomingCommitmentIDs = Set(source.fixedCommitments.map(\.id))
+        for index in retainedCommitments.indices where incomingCommitmentIDs.contains(retainedCommitments[index].id) {
+            retainedCommitments[index].id = UUID().uuidString
+        }
+        merged.fixedCommitments = source.fixedCommitments + retainedCommitments
+        merged.localState = localState
+        let oldUnfinished = tasks.filter { $0.completedAt == nil && $0.abandonedAt == nil }.map(\.id)
+        merged.localState.carryoverTaskIDs = Array(Set(localState.carryoverTaskIDs).union(oldUnfinished)).sorted()
+        if let selected = merged.localState.selectedTaskID, merged.localState.carryoverTaskIDs.contains(selected) {
+            merged.localState.selectedTaskID = nil
+        }
+        let currentOrder = localState.taskOrder ?? tasks.sorted {
+            let left = $0.order ?? Int.max
+            let right = $1.order ?? Int.max
+            return left == right ? $0.id < $1.id : left < right
+        }.map(\.id)
+        merged.localState.taskOrder = currentOrder + incomingTasks.map(\.id)
+        try merged.validate()
+        return WeeklyPlanImportPreview(
+            mergedPlan: merged, conflicts: [], mode: .newWeeklyBatch,
+            addedTaskIDs: incomingTasks.map(\.id), changedDescriptionTaskIDs: [], sourceEstimateChanges: [:]
+        )
+    }
+
     /// Prepares a source refresh without changing the saved catalog. Existing source
     /// tasks retain their app-owned IDs and local execution state. Changed estimates
     /// deliberately remain unchanged until a caller presents and resolves the conflict.
@@ -92,6 +187,9 @@ extension WeeklyPlan {
         var remappedIDs: [String: String] = [:]
         var mergedTasks: [PlannedTask] = []
         var conflicts: [WeeklyPlanImportConflict] = []
+        var addedTaskIDs: [String] = []
+        var changedDescriptionTaskIDs: [String] = []
+        var sourceEstimateChanges: [String: SourceEstimateComparison] = [:]
 
         for incomingTask in incoming.tasks {
             if let sourceID = incomingTask.sourceID {
@@ -106,6 +204,7 @@ extension WeeklyPlan {
                 }
                 mergedTasks.append(incomingTask)
                 remappedIDs[incomingTask.id] = incomingTask.id
+                addedTaskIDs.append(incomingTask.id)
                 continue
             }
 
@@ -113,6 +212,11 @@ extension WeeklyPlan {
             var refreshed = existing
             // Source-owned descriptive fields may refresh. Execution state, local
             // hierarchy, order, progress, and estimates stay app-owned.
+            if refreshed.title != incomingTask.title || refreshed.deadline != incomingTask.deadline ||
+                refreshed.project != incomingTask.project || refreshed.context != incomingTask.context ||
+                refreshed.minimumChunkSeconds != incomingTask.minimumChunkSeconds || refreshed.categoryTags != incomingTask.categoryTags {
+                changedDescriptionTaskIDs.append(existing.id)
+            }
             refreshed.title = incomingTask.title
             refreshed.deadline = incomingTask.deadline
             refreshed.project = incomingTask.project
@@ -120,10 +224,16 @@ extension WeeklyPlan {
             refreshed.minimumChunkSeconds = incomingTask.minimumChunkSeconds
             refreshed.categoryTags = incomingTask.categoryTags
             refreshed.prerequisiteTaskIDs = incomingTask.prerequisiteTaskIDs
-            refreshed.order = incomingTask.order
+            // Queue order is app-owned. Source order informs only a task's first import.
             if incomingTask.originalEstimateSeconds != existing.originalEstimateSeconds ||
                 incomingTask.remainingEstimateSeconds != existing.remainingEstimateSeconds {
                 conflicts.append(.sourceEstimateChanged(taskID: existing.id))
+                sourceEstimateChanges[existing.id] = SourceEstimateComparison(
+                    sourceOriginalSeconds: incomingTask.originalEstimateSeconds,
+                    sourceRemainingSeconds: incomingTask.remainingEstimateSeconds,
+                    localRemainingSeconds: existing.remainingEstimateSeconds,
+                    actualWorkSeconds: actualWorkSeconds(for: existing.id)
+                )
             }
             mergedTasks.append(refreshed)
         }
@@ -136,9 +246,13 @@ extension WeeklyPlan {
 
         // Incoming dependency IDs refer to the incoming snapshot. Matched source
         // tasks retain their app IDs, so remap before validation.
+        let added = Set(addedTaskIDs)
         for index in mergedTasks.indices {
             mergedTasks[index].prerequisiteTaskIDs = mergedTasks[index].prerequisiteTaskIDs.map {
                 remappedIDs[$0] ?? $0
+            }
+            if added.contains(mergedTasks[index].id) {
+                mergedTasks[index].parentTaskID = mergedTasks[index].parentTaskID.flatMap { remappedIDs[$0] ?? $0 }
             }
         }
 
@@ -155,6 +269,10 @@ extension WeeklyPlan {
             return remapped
         }
         try merged.validate()
-        return WeeklyPlanImportPreview(mergedPlan: merged, conflicts: conflicts)
+        return WeeklyPlanImportPreview(
+            mergedPlan: merged, conflicts: conflicts, mode: .refreshCurrentPlan,
+            addedTaskIDs: addedTaskIDs, changedDescriptionTaskIDs: changedDescriptionTaskIDs,
+            sourceEstimateChanges: sourceEstimateChanges
+        )
     }
 }
