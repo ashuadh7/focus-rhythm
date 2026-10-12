@@ -181,6 +181,58 @@ before using it as a file-import fixture.
    earlier tasks appear in **Carryover inbox**, not the active queue, until **Add to
    queue** is chosen for each one.
 
+## v0.3 end-to-end task workflows (#58)
+
+Run these two journeys after the focused checks above. They deliberately use the
+same task catalog throughout: importing planning context must never create a separate
+kind of task or change the timer's meaning.
+
+### Standalone day — Start test
+
+Begin from an empty app and use **Start test** for observable focus transitions.
+
+1. Add **Essay** with a 2.5-hour estimate, **Email** with no estimate, and optional
+   tags or project/context. Confirm no tag, category quota, imported plan, or complete
+   weekly plan is required to save either task.
+2. Break **Essay** into a one-hour **Outline** using **Use existing estimate**. Confirm
+   the preview and resulting known total remain 2.5 hours. Add a second one-hour child
+   with **Add to estimate**; the preview and total now read 3.5 hours. Reorder the
+   tasks, choose **Not now** for Essay, select Email, quit, and relaunch. Confirm each
+   choice, hierarchy, and accounting label remains intact.
+3. During focus, select Outline, then switch to Email and back. Add an urgent
+   10-minute **Reply now** task, work briefly, then resume the interrupted task.
+   Confirm the running focus block never restarts, the work record is divided at every
+   switch, child work rolls up to Essay where shown, and global focus time counts it
+   only once.
+4. End the day with work remaining. In **Review unfinished day**, carry Essay forward;
+   confirm it is neither completed nor removed and its children, estimates, actual
+   work, and queue history remain visible. Relaunch and use **Add to queue** from the
+   carryover inbox. Confirm it is available for the next day without needing an import.
+
+### Realistic imported week — scaled clock, date travel, and 1× notification check
+
+Load **Imported + local day 1** using date travel/fixtures, then use the reviewed
+JSON import scenario above to refresh the same source. Use a **60× scaled clock** only
+to observe the broader cadence; return to **1×** for notification delivery.
+
+1. Confirm fixed commitments remain anchored while Today’s task placement stays a
+   suggestion at iPhone width. Reimport after adding local child work below an imported
+   parent and after changing the source parent estimate. The review must show source
+   versus local remaining effort and actual work, while retaining the local children
+   and their allocated-versus-added accounting.
+2. Configure the 50/10/60, four-focus-session rhythm. Let it cross a real fixed-event
+   boundary; confirm focus does not run through that boundary, task selection can change
+   within a focus interval, and parent/child work does not change cadence semantics.
+   At 1×, background and return around a transition to confirm notification
+   reconciliation produces no duplicate warnings.
+3. Apply an extra 30 minutes to a grading task, repeatedly postpone A while selecting
+   B, and confirm A stays open and returns visibly when at risk. Exercise an early
+   completion, a task with five extra hours of discovered work, unknown effort, a late
+   start, and an infeasible deadline. Confirm the app warns rather than inventing a
+   schedule, completing work automatically, or discarding anything.
+4. At day end, relaunch, then advance to the next fixture day/window. Confirm carryover
+   is a deliberate inbox decision and that importing remains optional throughout.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,

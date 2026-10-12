@@ -139,6 +139,39 @@ final class WeeklyPlanStoreTests: XCTestCase {
         XCTAssertTrue(preview.mergedPlan.localState.estimateAdjustments.isEmpty)
     }
 
+    func testStandaloneWorkflowKeepsBreakdownQueueAndCarryoverThroughRelaunch() throws {
+        let store = makeStore()
+        var plan = WeeklyPlan(id: "standalone", tasks: [])
+        let essayID = try plan.addLocalTask(title: "Essay", estimateSeconds: 2.5 * 3_600, project: "History")
+        let emailID = try plan.addLocalTask(title: "Email", estimateSeconds: nil, categoryTags: ["admin"])
+        let outlineID = try plan.addLocalTask(
+            title: "Outline", estimateSeconds: 3_600, parentID: essayID,
+            accounting: .usesParentEstimate, recordedAt: date(100)
+        )
+        let researchID = try plan.addLocalTask(
+            title: "Research", estimateSeconds: 3_600, parentID: essayID,
+            accounting: .addsToParentEstimate, recordedAt: date(200)
+        )
+        try plan.reorderTasks([emailID, outlineID, researchID, essayID])
+        try plan.deferTask(essayID, at: date(300))
+        try plan.selectTask(emailID)
+        try plan.carryTaskForward(essayID)
+        try store.save(plan)
+
+        var restored = try XCTUnwrap(store.load())
+        XCTAssertEqual(restored.remainingEffortSeconds, 3.5 * 3_600)
+        XCTAssertTrue(restored.hasUnknownRemainingEffort)
+        XCTAssertEqual(restored.localState.taskOrder, [emailID, outlineID, researchID, essayID])
+        XCTAssertEqual(restored.localState.selectedTaskID, emailID)
+        XCTAssertEqual(restored.localState.carryoverTaskIDs, [essayID])
+        XCTAssertEqual(restored.tasks.first { $0.id == outlineID }?.parentEstimateAccounting, .usesParentEstimate)
+        XCTAssertEqual(restored.tasks.first { $0.id == researchID }?.parentEstimateAccounting, .addsToParentEstimate)
+
+        try restored.bringCarryoverIntoQueue(essayID)
+        XCTAssertFalse(restored.localState.carryoverTaskIDs.contains(essayID))
+        XCTAssertTrue(restored.taskQueue(at: date(301)).readyTasks.contains { $0.id == essayID })
+    }
+
     private func makeStore() -> UserDefaultsWeeklyPlanStore {
         let suite = "WeeklyPlanStoreTests.\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
