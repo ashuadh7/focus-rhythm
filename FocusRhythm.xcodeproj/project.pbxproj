@@ -46,6 +46,7 @@
 		0F1000A70000000000000001 /* DebugFixtureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A70000000000000001 /* DebugFixtureLoader.swift */; };
 		0F1000A80000000000000001 /* weekly-plan-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 0F2000A40000000000000001 /* weekly-plan-v1.json */; };
 		0F1000A90000000000000001 /* DebugFixtureLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000A90000000000000001 /* DebugFixtureLoaderTests.swift */; };
+		0F1000AA0000000000000001 /* TodayFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2000AA0000000000000001 /* TodayFlowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +100,7 @@
 		0F2000A60000000000000001 /* WeeklyPlanStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanStoreTests.swift; sourceTree = "<group>"; };
 		0F2000A70000000000000001 /* DebugFixtureLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixtureLoader.swift; sourceTree = "<group>"; };
 		0F2000A90000000000000001 /* DebugFixtureLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFixtureLoaderTests.swift; sourceTree = "<group>"; };
+		0F2000AA0000000000000001 /* TodayFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayFlowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -156,8 +158,17 @@
 				0F7000060000000000000001 /* BreakActivities */,
 				0F7000070000000000000001 /* DailySummary */,
 				0F70000D0000000000000001 /* RhythmSetup */,
+				0F70000E0000000000000001 /* Today */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		0F70000E0000000000000001 /* Today */ = {
+			isa = PBXGroup;
+			children = (
+				0F2000AA0000000000000001 /* TodayFlowView.swift */,
+			);
+			path = Today;
 			sourceTree = "<group>";
 		};
 		0F7000050000000000000001 /* Timer */ = {
@@ -383,6 +394,7 @@
 				0F10001C0000000000000001 /* ActiveRunStore.swift in Sources */,
 				0F10001E0000000000000001 /* AppClock.swift in Sources */,
 				0F1000A70000000000000001 /* DebugFixtureLoader.swift in Sources */,
+				0F1000AA0000000000000001 /* TodayFlowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

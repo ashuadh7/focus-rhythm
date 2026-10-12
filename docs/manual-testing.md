@@ -111,6 +111,26 @@ during focus.
    remaining focus time to it. Run the rhythm with no selected task as well; the
    normal timer and break controls must remain usable.
 
+## Today’s suggested flow (#45)
+
+From the timer, tap **Today**. This is a review surface, not a second planner: task
+placement is always a suggestion and selecting a task must not change the current
+focus interval.
+
+1. With no imported planning window, add a task and confirm **Today** says that an
+   exact day plan is optional. Choose it, move it, and use **Not now**; return to the
+   setup queue and confirm the same durable choice is visible there.
+2. Load **Imported + local day 1**. Confirm fixed commitments appear separately from
+   suggested work, and that known work that cannot fit produces an overflow warning
+   rather than silently packing it around a meeting.
+3. Use the child-task scenario above to make a one-hour child from a 2.5-hour parent.
+   Confirm the child is shown as part of its parent, and the known total still reads
+   2.5 hours for **Use existing estimate** and 3.5 hours for **Add to estimate**.
+4. Add an unknown-effort task and a late-deadline task. Confirm uncertainty and
+   deadline-risk wording remain visible; neither should create duplicated tasks or
+   turn a suggestion into a fixed appointment. Start the rhythm and confirm its
+   cadence remains unchanged.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,
