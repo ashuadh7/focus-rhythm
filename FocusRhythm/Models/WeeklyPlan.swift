@@ -158,10 +158,19 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
     @discardableResult
     mutating func resumeInterruptedTask() throws -> String? {
         var copy = self
-        guard let taskID = copy.localState.interruptedTaskIDs.popLast() else { return nil }
-        try copy.selectTask(taskID)
+        // Older persisted plans can contain an interruption that became terminal
+        // elsewhere. Discard it and continue toward the next resumable task.
+        while let taskID = copy.localState.interruptedTaskIDs.popLast() {
+            do {
+                try copy.selectTask(taskID)
+                self = copy
+                return taskID
+            } catch {
+                continue
+            }
+        }
         self = copy
-        return taskID
+        return nil
     }
 
     /// Changes the working expectation without changing the durable record of
@@ -235,6 +244,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         if let descendantDisposition {
             copy.apply(descendantDisposition, to: activeDescendants, at: date)
         }
+        copy.removeUnavailableInterruptedTasks()
         try copy.validate()
         self = copy
     }
@@ -372,6 +382,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         if let descendantDisposition {
             copy.apply(descendantDisposition, to: activeDescendants, at: date)
         }
+        copy.removeUnavailableInterruptedTasks()
         try copy.validate()
         self = copy
     }
@@ -441,6 +452,15 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
             }
             localState.deferrals.removeAll { $0.taskID == tasks[index].id }
             if localState.selectedTaskID == tasks[index].id { localState.selectedTaskID = nil }
+        }
+    }
+
+    /// A completion or abandonment must never leave non-resumable work in the
+    /// durable interruption stack.
+    private mutating func removeUnavailableInterruptedTasks() {
+        localState.interruptedTaskIDs.removeAll { taskID in
+            guard let task = tasks.first(where: { $0.id == taskID }) else { return true }
+            return task.completedAt != nil || task.abandonedAt != nil
         }
     }
 

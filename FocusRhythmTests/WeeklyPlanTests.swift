@@ -72,6 +72,32 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertEqual(try plan.resumeInterruptedTask(), "grading")
     }
 
+    func testCompletingInterruptedTaskRemovesItFromResumeStack() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [
+            makeTask(id: "grading", title: "Grading", estimate: 3_600),
+            makeTask(id: "email", title: "Urgent email", estimate: nil)
+        ], localState: PlanLocalState(selectedTaskID: "grading"))
+
+        try plan.beginUrgentTask("email")
+        try plan.markTaskCompleted("grading", at: now)
+
+        XCTAssertTrue(plan.localState.interruptedTaskIDs.isEmpty)
+        XCTAssertNil(try plan.resumeInterruptedTask())
+    }
+
+    func testResumeDiscardsLegacyTerminalInterruptedTasks() throws {
+        var completed = makeTask(id: "done", title: "Done", estimate: nil)
+        completed.completedAt = now
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [
+            completed,
+            makeTask(id: "next", title: "Next", estimate: nil)
+        ], localState: PlanLocalState(interruptedTaskIDs: ["next", "done"]))
+
+        XCTAssertEqual(try plan.resumeInterruptedTask(), "next")
+        XCTAssertEqual(plan.localState.selectedTaskID, "next")
+        XCTAssertTrue(plan.localState.interruptedTaskIDs.isEmpty)
+    }
+
     func testEditAndAbandonLocalTaskPreserveHistoryButRemoveItFromQueue() throws {
         var plan = WeeklyPlan(id: "local-tasks", tasks: [])
         let id = try plan.addLocalTask(title: "Old title", estimateSeconds: nil)

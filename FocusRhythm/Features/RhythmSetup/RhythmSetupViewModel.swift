@@ -429,6 +429,7 @@ final class RhythmSetupViewModel {
                 schedule: schedule,
                 startedAt: startedAt
             )
+            try selectSuggestedTaskForFocusStart(at: startedAt)
             library.activeRun = run
             persist()
             activeRunStore.save(run)
@@ -504,10 +505,27 @@ final class RhythmSetupViewModel {
                 finalReturnLeadTime: 5
             )
         )
+        do {
+            try selectSuggestedTaskForFocusStart(at: startedAt)
+        } catch {
+            taskQueueMessage = "Couldn’t select the first task: \(error.localizedDescription)"
+        }
         library.activeRun = run
         persist()
         activeRunStore.save(run)
         return run
+    }
+
+    /// A focus run begins with the best currently eligible task when the person
+    /// has not already made a selection. This persists a task decision only; it
+    /// never changes the generated schedule or the timer.
+    private func selectSuggestedTaskForFocusStart(at date: Date) throws {
+        guard var plan = planStore.load(), plan.localState.selectedTaskID == nil,
+              let taskID = plan.taskQueue(at: date).suggestedTask?.id
+        else { return }
+        try plan.selectTask(taskID)
+        try planStore.save(plan)
+        refreshTaskQueue()
     }
 
     private func persist() {
