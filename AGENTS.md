@@ -1,5 +1,23 @@
 # Project Workflow
 
+## Current active batch: v0.4
+
+The active milestone is **v0.4: Focused execution and weekly planning**. Its GitHub
+umbrella is #73. Until the user replaces this direction, a request to "work on the
+next batch" means: select the oldest unblocked *implementation* child in v0.4,
+starting with #74, and follow the dependency order recorded in each issue body.
+
+The product goal is a reliable, low-distraction **Focus** tab plus a separate
+**Tasks** workspace. Focus offers one task at a time and permits only accept, skip,
+complete, and a deliberate urgent interruption; task organization belongs in Tasks.
+The September 14–22 real-week fixture is the acceptance plan for the milestone.
+
+`v03` remains the integration branch for this batch. Create each new issue branch
+from the current `v03`, merge completed issue branches back into `v03`, and retain
+the branches. Do not merge this work into `development` or `main` until the user has
+completed the whole-version manual review. These rules supersede the generic branch
+instructions below for v0.4 only.
+
 ## Issue Selection
 
 When the user asks to work on the "next issue," select the oldest open GitHub issue

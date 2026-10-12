@@ -4,6 +4,47 @@ This file records cross-issue product decisions that future work must check befo
 changing related behavior. It is not an implementation backlog by itself; GitHub
 issues remain the source of assigned scope and dependencies.
 
+## v0.4 focused execution and weekly planning
+
+**Status:** agreed direction; see GitHub milestone v0.4 and umbrella #73.
+
+**Tags:** `focus`, `task-workspace`, `eisenhower`, `recommendation`, `deadline`,
+`dependency`, `weekly-plan`, `import`, `urgent-task`.
+
+### Product boundary
+
+FocusRhythm has two deliberately different surfaces:
+
+- **Focus** protects execution. It shows the active task, timer, a concise next-task
+  recommendation, and only accept, skip, complete, or deliberate urgent interruption.
+  It must not expose estimate editing, hierarchy editing, broad queue configuration,
+  or planning screens while a timer is active.
+- **Tasks** supports planning. It contains task entry/editing, parent/child work,
+  estimates, deadlines, dependencies, work classification, and the Eisenhower board.
+
+Task completion, task selection, Pomodoro/run ending, and abandonment are distinct
+operations. Completion never resets or ends a timer. A valid focus start selects the
+best eligible task by default; no selection is shown only when no task is eligible.
+
+### Recommendation rules
+
+The recommendation engine first removes unavailable work (completed, abandoned,
+blocked, or conditional-and-not-ready). It then protects fixed commitments and ranks
+eligible work by deadline/milestone risk, dependency critical path, importance,
+urgency, chunk fit, explicit order, and deterministic deferral cooldown. A skipped
+task stays in circulation and returns cyclically, earlier only when its deadline risk
+demands it. Every suggestion must give a concise reason and never promise unknown
+effort will fit.
+
+### Concrete acceptance fixture
+
+The September 14–22 plan is the required v0.4 fixture: Throughline programming and
+writing, NSERC revision, conditional grading, fixed meetings, and checkpoints before
+the Sept 15 Jian, Sept 17 Fan, and Sept 22 Jian meetings. The chain `Control
+condition → formative-study review → sketches → LLM vision → implementation issues
+→ build` must be represented as prerequisites. Imported plans preserve all local
+actual work, children, classifications, queue choices, and carryover on refresh.
+
 ## Importing a fresh weekly plan while preserving real work
 
 **Status:** agreed direction; refine #43 before implementing its import UI.
