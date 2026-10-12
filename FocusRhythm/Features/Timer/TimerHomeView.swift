@@ -124,6 +124,10 @@ struct TimerHomeView: View {
                     .lineLimit(1)
                     .accessibilityLabel(accessibilityTimeLabel)
 
+                if viewModel.phase == .work {
+                    currentTaskCard
+                }
+
                 if let next = viewModel.nextTransition {
                     Text("Next: \(next.title) at \(next.date.formatted(date: .omitted, time: .shortened))")
                         .font(.subheadline)
@@ -206,6 +210,87 @@ struct TimerHomeView: View {
         .onReceive(ticker) { _ in
             viewModel.refreshForClockTick()
         }
+    }
+
+    @ViewBuilder
+    private var currentTaskCard: some View {
+        if let task = viewModel.currentTask {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Working on")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(task.title)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(2)
+                if let parent = task.parentTitle {
+                    Label(parent, systemImage: "arrow.turn.up.left")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                taskContext(task)
+                taskProgress(task.progress)
+                Button("Mark done") { _ = viewModel.completeSelectedTask() }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.top, 2)
+                    .accessibilityLabel("Mark \(task.title) done")
+            }
+            .frame(maxWidth: 360, alignment: .leading)
+            .padding(14)
+            .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+            .accessibilityElement(children: .contain)
+        } else if let suggestion = viewModel.nextTaskSuggestion {
+            VStack(spacing: 5) {
+                Text("No task selected")
+                    .font(.subheadline.weight(.semibold))
+                Text("Next suggestion: \(suggestion)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private func taskContext(_ task: FocusTimerViewModel.CurrentTask) -> some View {
+        let details = [task.project, task.context].compactMap { $0 }.joined(separator: " · ")
+        if !details.isEmpty {
+            Text(details)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        if let deadline = task.deadline {
+            Text("Due \(deadline.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func taskProgress(_ progress: FocusTimerViewModel.CurrentTask.Progress) -> some View {
+        switch progress {
+        case let .unknown(actualWorkSeconds):
+            Text(actualWorkSeconds > 0
+                 ? "Time unknown · \(durationText(actualWorkSeconds)) focused"
+                 : "Time unknown")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case let .estimated(remainingSeconds, actualWorkSeconds):
+            Text("\(durationText(remainingSeconds)) remaining · \(durationText(actualWorkSeconds)) focused")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case let .estimateUsed(actualWorkSeconds):
+            Text("Estimate used · \(durationText(actualWorkSeconds)) focused · still open")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private func durationText(_ seconds: TimeInterval) -> String {
+        let roundedMinutes = max(1, Int((seconds / 60).rounded()))
+        return "\(roundedMinutes) min"
     }
 
     private var primaryControl: some View {

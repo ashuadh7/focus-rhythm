@@ -52,7 +52,7 @@ struct RhythmSetupView: View {
     @ViewBuilder
     private var taskQueue: some View {
         if let queue = viewModel.taskQueue, !queue.selectableTasks.isEmpty {
-            Section("Task queue") {
+            Section {
                 if let suggested = queue.suggestedTask {
                     Text("Suggested next: \(suggested.title)")
                         .font(.subheadline.weight(.semibold))
@@ -63,10 +63,10 @@ struct RhythmSetupView: View {
                 }
 
                 if !queue.deferredTasks.isEmpty {
-                    Section("Not now") {
-                        ForEach(queue.deferredTasks) { task in
-                            queueRow(task, isDeferred: true, queue: queue)
-                        }
+                    Text("Not now")
+                        .font(.subheadline.weight(.semibold))
+                    ForEach(queue.deferredTasks) { task in
+                        queueRow(task, isDeferred: true, queue: queue)
                     }
                     if let returnDate = queue.nextDeferredReturn {
                         Text("Postponed work returns at \(returnDate.formatted(date: .omitted, time: .shortened)).")
@@ -80,6 +80,8 @@ struct RhythmSetupView: View {
                         .font(.footnote)
                         .foregroundStyle(.red)
                 }
+            } header: {
+                Text("Task queue")
             } footer: {
                 Text("Choose a task for your next focus block, change its priority, or postpone it briefly. Postponing is not completion.")
             }

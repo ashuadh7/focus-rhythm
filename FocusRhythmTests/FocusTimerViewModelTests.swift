@@ -1260,6 +1260,40 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(segments.map(\.duration).reduce(0, +), 600)
     }
 
+    func testCurrentTaskPresentationDistinguishesParentContextAndOwnProgress() throws {
+        let start = Date(timeIntervalSince1970: 26_000)
+        var plan = taskPlan(selected: "grading")
+        plan.tasks[0].parentTaskID = "course"
+        plan.tasks[0].parentEstimateAccounting = .usesParentEstimate
+        plan.tasks[0].project = "Teaching"
+        plan.tasks[0].context = "Laptop"
+        plan.tasks[0].deadline = start.addingTimeInterval(86_400)
+        plan.tasks.append(PlannedTask(id: "course", sourceID: nil, title: "CS 349", originalEstimateSeconds: 3_600, remainingEstimateSeconds: 2_400, completedAt: nil, order: 2, deadline: nil, prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil, project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: []))
+        let store = InMemoryWeeklyPlanStore(plan: plan)
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: store, now: { start })
+        let child = try XCTUnwrap(viewModel.currentTask)
+        XCTAssertEqual(child.parentTitle, "CS 349")
+        XCTAssertEqual(child.project, "Teaching")
+        XCTAssertEqual(child.context, "Laptop")
+        guard case let .estimated(remaining, actual) = child.progress else {
+            return XCTFail("Expected estimated own-task progress")
+        }
+        XCTAssertEqual(remaining, 1_200)
+        XCTAssertEqual(actual, 0)
+    }
+
+    func testCompletingTaskExposesNextSuggestionWithoutChangingTimer() throws {
+        let start = Date(timeIntervalSince1970: 27_000)
+        var currentDate = start.addingTimeInterval(120)
+        let store = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: store, now: { currentDate })
+
+        XCTAssertTrue(viewModel.completeSelectedTask())
+        XCTAssertNil(viewModel.currentTask)
+        XCTAssertEqual(viewModel.nextTaskSuggestion, "Email")
+        XCTAssertEqual(viewModel.remainingTime, 480)
+    }
+
     private func taskPlan(selected: String) -> WeeklyPlan {
         WeeklyPlan(id: "tasks", tasks: [
             PlannedTask(id: "grading", sourceID: nil, title: "Grading", originalEstimateSeconds: 1_200, remainingEstimateSeconds: 1_200, completedAt: nil, order: 0, deadline: nil, prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil, project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: []),

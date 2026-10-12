@@ -72,6 +72,26 @@ and one without one, then use **Start test**.
    not credited to either task. Quit and reopen before a later block completes, then
    confirm previously recorded task work is present exactly once.
 
+## Current task in focus (#48)
+
+Use a task catalog containing a root task, a child task with a project/context and
+deadline, an unknown-effort task, and a task whose remaining estimate is zero but is
+not marked done. Start **Start test** and select each task from the queue before or
+during focus.
+
+1. Confirm the countdown and task name are readable together without opening a
+   planning screen. For the child, confirm the parent breadcrumb is visible but its
+   displayed progress is the child's own work, not a duplicated parent total.
+2. Confirm project, context, and deadline appear only when supplied. Root and
+   unknown-effort tasks should remain clear without empty placeholders; the latter
+   says **Time unknown** and may show focused time.
+3. For the zero-remaining task, confirm the timer says the estimate is used while the
+   task remains open. It must not look completed merely because the estimate ran out.
+4. Mark a task done mid-block. Confirm the same countdown continues, the task panel
+   becomes a next-task suggestion, and selecting that suggestion credits only the
+   remaining focus time to it. Run the rhythm with no selected task as well; the
+   normal timer and break controls must remain usable.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,

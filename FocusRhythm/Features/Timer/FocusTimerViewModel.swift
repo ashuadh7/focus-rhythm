@@ -3,6 +3,21 @@ import Observation
 
 @Observable
 final class FocusTimerViewModel {
+    struct CurrentTask: Equatable {
+        enum Progress: Equatable {
+            case unknown(actualWorkSeconds: TimeInterval)
+            case estimated(remainingSeconds: TimeInterval, actualWorkSeconds: TimeInterval)
+            case estimateUsed(actualWorkSeconds: TimeInterval)
+        }
+
+        var id: String
+        var title: String
+        var parentTitle: String?
+        var project: String?
+        var context: String?
+        var deadline: Date?
+        var progress: Progress
+    }
     static let defaultWorkDuration: TimeInterval = 50 * 60
     static let defaultBreakDuration: TimeInterval = 10 * 60
 
@@ -68,6 +83,9 @@ final class FocusTimerViewModel {
     private var schedule: GeneratedDailySchedule? { activeRun?.schedule }
     private var runtimeDate: Date
     private var currentIntervalIndex: Int?
+    /// Invalidates task-derived display values after a local task action. The plan is
+    /// intentionally stored separately so timer state survives independently.
+    private var taskDisplayRevision = 0
 
     init(
         phase: FocusPhase = .idle,
@@ -217,6 +235,43 @@ final class FocusTimerViewModel {
         let minutes = Int(clampedTime) / 60
         let seconds = Int(clampedTime) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    /// The task receiving focus credit. A missing task is a supported rhythm-only
+    /// state, rather than an error or a prompt to plan while focusing.
+    var currentTask: CurrentTask? {
+        _ = taskDisplayRevision
+        guard let plan = planStore?.load(),
+              let taskID = plan.localState.selectedTaskID,
+              let task = plan.tasks.first(where: { $0.id == taskID })
+        else { return nil }
+
+        let progress: CurrentTask.Progress
+        let actual = plan.actualWorkSeconds(for: task.id)
+        if let remaining = task.remainingEstimateSeconds {
+            progress = remaining > 0
+                ? .estimated(remainingSeconds: remaining, actualWorkSeconds: actual)
+                : .estimateUsed(actualWorkSeconds: actual)
+        } else {
+            progress = .unknown(actualWorkSeconds: actual)
+        }
+        return CurrentTask(
+            id: task.id,
+            title: task.title,
+            parentTitle: task.parentTaskID.flatMap { parentID in plan.tasks.first(where: { $0.id == parentID })?.title },
+            project: task.project,
+            context: task.context,
+            deadline: task.deadline,
+            progress: progress
+        )
+    }
+
+    /// A completion never advances the timer. This is only a calm suggestion for
+    /// where the still-running focus interval could go next.
+    var nextTaskSuggestion: String? {
+        _ = taskDisplayRevision
+        guard let plan = planStore?.load() else { return nil }
+        return plan.taskQueue(at: now()).suggestedTask?.title
     }
 
     /// Default/maximum break length to offer in the mid-work interrupt picker.
@@ -455,11 +510,14 @@ final class FocusTimerViewModel {
     @discardableResult
     func selectTask(_ taskID: String) -> Bool {
         guard let planStore else { return false }
-        closeCurrentTaskSegment(at: now())
+        let selectedAt = now()
+        if schedule != nil { reconcileSchedule(at: selectedAt) }
+        closeCurrentTaskSegment(at: selectedAt)
         do {
             guard var plan = planStore.load() else { return false }
             try plan.selectTask(taskID)
             try planStore.save(plan)
+            taskDisplayRevision += 1
             return true
         } catch {
             assertionFailure("Unable to select task: \(error)")
@@ -473,11 +531,13 @@ final class FocusTimerViewModel {
     func completeSelectedTask() -> Bool {
         guard let planStore, let selectedTaskID = planStore.load()?.localState.selectedTaskID else { return false }
         let completedAt = now()
+        if schedule != nil { reconcileSchedule(at: completedAt) }
         closeCurrentTaskSegment(at: completedAt)
         do {
             guard var plan = planStore.load() else { return false }
             try plan.markTaskCompleted(selectedTaskID, at: completedAt)
             try planStore.save(plan)
+            taskDisplayRevision += 1
             return true
         } catch {
             assertionFailure("Unable to complete task: \(error)")
@@ -725,6 +785,7 @@ final class FocusTimerViewModel {
             }
             try plan.validateWorkSegments(in: activeRun.schedule, runID: activeRun.id)
             try planStore.save(plan)
+            taskDisplayRevision += 1
         } catch {
             assertionFailure("Unable to record task work: \(error)")
         }
