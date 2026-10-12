@@ -64,9 +64,11 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         deadlineAtRiskTaskIDs: Set<String> = []
     ) -> TaskQueue {
         let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
+        let carryover = Set(localState.carryoverTaskIDs)
         let ordered = orderedTasks.filter { task in
             guard task.completedAt == nil, task.abandonedAt == nil,
                   !task.needsEstimateRevision,
+                  !carryover.contains(task.id),
                   task.prerequisiteTaskIDs.allSatisfy(completed.contains)
             else { return false }
             guard let availableFocusSeconds, let minimum = task.minimumChunkSeconds else { return true }
@@ -134,6 +136,20 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         var copy = self
         copy.localState.selectedTaskID = taskID
         copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        try copy.validate()
+        self = copy
+    }
+
+    /// Makes a reviewed carryover task available again. Carryover is intentionally
+    /// separate from a new week's active queue: it is never discarded or silently
+    /// scheduled merely because a new source snapshot was accepted.
+    mutating func bringCarryoverIntoQueue(_ taskID: String) throws {
+        guard localState.carryoverTaskIDs.contains(taskID),
+              tasks.contains(where: { $0.id == taskID && $0.completedAt == nil && $0.abandonedAt == nil }) else {
+            throw PlanValidationError(path: "localState.carryoverTaskIDs", message: "Only unfinished carryover tasks can be returned to the queue.")
+        }
+        var copy = self
+        copy.localState.carryoverTaskIDs.removeAll { $0 == taskID }
         try copy.validate()
         self = copy
     }
@@ -651,6 +667,34 @@ struct PlanLocalState: Codable, Equatable {
     var selectedTaskID: String? = nil
     var estimateAdjustments: [TaskEstimateAdjustment] = []
     var workSegments: [TaskWorkSegment] = []
+    /// Unfinished work retained from an earlier source batch. It remains durable
+    /// and visible for review, but is not injected into a new week's queue.
+    var carryoverTaskIDs: [String] = []
+
+    init(taskOrder: [String]? = nil, deferrals: [TaskDeferral] = [],
+         selectedTaskID: String? = nil, estimateAdjustments: [TaskEstimateAdjustment] = [],
+         workSegments: [TaskWorkSegment] = [], carryoverTaskIDs: [String] = []) {
+        self.taskOrder = taskOrder
+        self.deferrals = deferrals
+        self.selectedTaskID = selectedTaskID
+        self.estimateAdjustments = estimateAdjustments
+        self.workSegments = workSegments
+        self.carryoverTaskIDs = carryoverTaskIDs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case taskOrder, deferrals, selectedTaskID, estimateAdjustments, workSegments, carryoverTaskIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        taskOrder = try values.decodeIfPresent([String].self, forKey: .taskOrder)
+        deferrals = try values.decodeIfPresent([TaskDeferral].self, forKey: .deferrals) ?? []
+        selectedTaskID = try values.decodeIfPresent(String.self, forKey: .selectedTaskID)
+        estimateAdjustments = try values.decodeIfPresent([TaskEstimateAdjustment].self, forKey: .estimateAdjustments) ?? []
+        workSegments = try values.decodeIfPresent([TaskWorkSegment].self, forKey: .workSegments) ?? []
+        carryoverTaskIDs = try values.decodeIfPresent([String].self, forKey: .carryoverTaskIDs) ?? []
+    }
 }
 
 struct TaskEstimateAdjustment: Codable, Equatable, Identifiable {

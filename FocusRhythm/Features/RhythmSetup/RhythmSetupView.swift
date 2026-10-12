@@ -1,10 +1,13 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct RhythmSetupView: View {
     @State private var viewModel: RhythmSetupViewModel
     @State private var isEditing = false
     @State private var isCreatingTask = false
     @State private var editingTask: PlannedTask?
+    @State private var isImportingPlan = false
+    @State private var stagedImport: WeeklyPlanImportPreview?
     @State private var startedRun: ActiveRhythmRun?
     let onStart: (ActiveRhythmRun) -> Void
 
@@ -24,9 +27,11 @@ struct RhythmSetupView: View {
                     )
                     Button("Create rhythm") { createAndEditVariation() }
                     taskQueue
+                    carryoverInbox
                 } else {
                     variationPicker
                     taskQueue
+                    carryoverInbox
                     endCondition
                     preview
                     actions
@@ -37,6 +42,7 @@ struct RhythmSetupView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Import reviewed plan", systemImage: "square.and.arrow.down") { isImportingPlan = true }
                         Button("Duplicate", systemImage: "doc.on.doc") { viewModel.duplicateSelected() }
                             .disabled(viewModel.selectedVariationID == nil)
                         Button("Delete", systemImage: "trash", role: .destructive) { viewModel.deleteSelected() }
@@ -60,6 +66,53 @@ struct RhythmSetupView: View {
                 LocalTaskEditor(task: task, possibleParents: viewModel.possibleParents(for: task.id)) { title, estimate, deadline, project, context, tags, parentID, accounting in
                     if viewModel.editLocalTask(task.id, title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags, parentID: parentID, accounting: accounting) {
                         editingTask = nil
+                    }
+                }
+            }
+            .sheet(isPresented: Binding(get: { stagedImport != nil }, set: { if !$0 { stagedImport = nil } })) {
+                if let stagedImport {
+                    PlanImportReviewView(preview: stagedImport) {
+                        if viewModel.applyReviewedPlanImport(stagedImport) { self.stagedImport = nil }
+                    } onCancel: {
+                        self.stagedImport = nil
+                    }
+                }
+            }
+            .fileImporter(isPresented: $isImportingPlan, allowedContentTypes: [.json]) { result in
+                switch result {
+                case let .success(url):
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    do {
+                        stagedImport = viewModel.stageExternalPlanImport(try Data(contentsOf: url))
+                    } catch {
+                        // The same visible task-queue message style is used for read
+                        // errors and schema errors, without touching saved data.
+                        _ = viewModel.stageExternalPlanImport(Data())
+                    }
+                case .failure:
+                    break // User cancellation is deliberately a no-op.
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var carryoverInbox: some View {
+        if !viewModel.carryoverTasks.isEmpty {
+            Section("Carryover inbox") {
+                Text("These unfinished tasks were preserved from an earlier plan. Choose only the ones that belong in this week.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                ForEach(viewModel.carryoverTasks) { task in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(task.title)
+                            Text(task.remainingEstimateSeconds.map { duration($0) } ?? "Time unknown")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Add to queue") { viewModel.bringCarryoverIntoQueue(task.id) }
+                            .buttonStyle(.bordered)
                     }
                 }
             }
@@ -311,6 +364,98 @@ struct RhythmSetupView: View {
     private func duration(_ interval: TimeInterval) -> String {
         let minutes = Int(interval / 60)
         return minutes >= 60 ? "\(minutes / 60) hr \(minutes % 60) min" : "\(minutes) min"
+    }
+}
+
+private struct PlanImportReviewView: View {
+    let preview: WeeklyPlanImportPreview
+    let onApply: () -> Void
+    let onCancel: () -> Void
+
+    private var title: String {
+        preview.mode == .newWeeklyBatch ? "Review new weekly plan" : "Review plan refresh"
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Before you apply") {
+                    Text(preview.mode == .newWeeklyBatch
+                         ? "New source tasks will enter the queue. Your unfinished earlier tasks are preserved in Carryover inbox, where you decide what to bring forward."
+                         : "This refresh keeps your work history, completion, local children, queue order, and remaining estimates. Review source changes before applying.")
+                        .font(.footnote)
+                }
+                Section("Incoming planning context") {
+                    LabeledContent("Tasks", value: "\(preview.addedTaskIDs.count) new")
+                    LabeledContent("Fixed commitments", value: "\(preview.mergedPlan.fixedCommitments.count)")
+                    if let horizon = preview.mergedPlan.horizon {
+                        LabeledContent("Window", value: "\(horizon.startDay) to \(horizon.endDayExclusive)")
+                    } else {
+                        Text("No availability window was supplied. Tasks still import normally; time remains unknown rather than assumed.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                if !preview.changedDescriptionTaskIDs.isEmpty {
+                    Section("Source details to update") {
+                        ForEach(preview.changedDescriptionTaskIDs, id: \.self) { id in
+                            Text(preview.mergedPlan.tasks.first(where: { $0.id == id })?.title ?? id)
+                        }
+                        Text("These are source-owned descriptions such as title, context, deadline, and tags. Your queue choice and work record stay unchanged.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                if !preview.sourceEstimateChanges.isEmpty {
+                    Section("Estimate conflicts") {
+                        ForEach(preview.sourceEstimateChanges.keys.sorted(), id: \.self) { id in
+                            let comparison = preview.sourceEstimateChanges[id]!
+                            let task = preview.mergedPlan.tasks.first(where: { $0.id == id })
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(task?.title ?? id).font(.headline)
+                                Text("Source proposes \(effort(comparison.sourceRemainingSeconds)); your remaining estimate stays \(effort(comparison.localRemainingSeconds)).")
+                                Text("Actual focused work: \(duration(comparison.actualWorkSeconds)). Apply keeps your local estimate; edit it deliberately later if needed.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                let missing = preview.conflicts.compactMap { conflict -> String? in
+                    if case let .sourceTaskMissing(taskID) = conflict { return taskID }
+                    return nil
+                }
+                if !missing.isEmpty {
+                    Section("Missing from source") {
+                        ForEach(missing, id: \.self) { id in
+                            Text(preview.mergedPlan.tasks.first(where: { $0.id == id })?.title ?? id)
+                        }
+                        Text("Nothing is deleted. These tasks stay in your catalog until you carry them forward, complete them, abandon them, or archive them in a later review.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                Section("Source tasks") {
+                    ForEach(preview.mergedPlan.tasks.filter { $0.sourceID != nil }) { task in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(task.title)
+                            Text(task.remainingEstimateSeconds.map(duration) ?? "Time unknown")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .confirmationAction) { Button("Apply reviewed import", action: onApply) }
+            }
+        }
+    }
+
+    private func duration(_ seconds: TimeInterval) -> String {
+        let minutes = max(0, Int((seconds / 60).rounded()))
+        return minutes >= 60 ? "\(minutes / 60) hr \(minutes % 60) min" : "\(minutes) min"
+    }
+
+    private func effort(_ seconds: TimeInterval?) -> String {
+        seconds.map(duration) ?? "unknown"
     }
 }
 

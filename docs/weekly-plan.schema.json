@@ -410,6 +410,13 @@
           "items": {
             "$ref": "#/$defs/workSegment"
           }
+        },
+        "carryoverTaskIDs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identity"
+          },
+          "uniqueItems": true
         }
       },
       "required": [

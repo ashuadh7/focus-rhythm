@@ -234,6 +234,46 @@ final class RhythmSetupViewModel {
         taskQueue = planStore.load()?.taskQueue(at: now())
     }
 
+    var carryoverTasks: [PlannedTask] {
+        guard let plan = planStore.load() else { return [] }
+        let ids = Set(plan.localState.carryoverTaskIDs)
+        return plan.tasks.filter { ids.contains($0.id) && $0.completedAt == nil && $0.abandonedAt == nil }
+    }
+
+    func bringCarryoverIntoQueue(_ taskID: String) {
+        updateTaskQueue { plan in try plan.bringCarryoverIntoQueue(taskID) }
+    }
+
+    /// Decoding and reconciliation are intentionally separate from saving. The
+    /// review sheet owns the explicit final decision, so cancelling leaves the
+    /// catalog and an active rhythm untouched.
+    func stageExternalPlanImport(_ data: Data) -> WeeklyPlanImportPreview? {
+        do {
+            let incoming = try WeeklyPlanJSON.decode(data)
+            let current = planStore.load() ?? WeeklyPlan(id: UUID().uuidString, tasks: [])
+            let preview = try current.previewingExternalImport(incoming)
+            taskQueueMessage = nil
+            return preview
+        } catch {
+            taskQueueMessage = "Couldn’t import this file: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    @discardableResult
+    func applyReviewedPlanImport(_ preview: WeeklyPlanImportPreview) -> Bool {
+        do {
+            try planStore.save(preview.mergedPlan)
+            taskQueueMessage = nil
+            refreshTaskQueue()
+            refreshPreview()
+            return true
+        } catch {
+            taskQueueMessage = "Couldn’t save this reviewed import: \(error.localizedDescription)"
+            return false
+        }
+    }
+
     @discardableResult
     func createLocalTask(
         title: String, estimateSeconds: TimeInterval?, deadline: Date? = nil,

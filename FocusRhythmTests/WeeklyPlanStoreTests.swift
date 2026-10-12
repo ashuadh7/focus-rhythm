@@ -71,6 +71,74 @@ final class WeeklyPlanStoreTests: XCTestCase {
         XCTAssertEqual(preview.conflicts, [.sourceTaskMissing(taskID: "parent")])
     }
 
+    func testNewWeeklyImportPlacesPriorUnfinishedWorkInCarryoverWithoutLosingIt() throws {
+        var current = localPlan()
+        current.sourceID = "source:old-week"
+        current.tasks[0].sourceID = "source:old-task"
+        current.localState.taskOrder = ["parent"]
+        current.localState.selectedTaskID = "parent"
+
+        var incomingTask = task(id: "fresh", title: "Fresh work", estimate: 1_800)
+        incomingTask.sourceID = "source:fresh"
+        let incoming = WeeklyPlan(id: "new-week", sourceID: "source:new-week", tasks: [incomingTask])
+
+        let preview = try current.previewingExternalImport(incoming)
+
+        XCTAssertEqual(preview.mode, .newWeeklyBatch)
+        XCTAssertEqual(preview.mergedPlan.localState.carryoverTaskIDs, ["parent"])
+        XCTAssertNil(preview.mergedPlan.localState.selectedTaskID)
+        XCTAssertEqual(preview.mergedPlan.taskQueue(at: date(100)).readyTasks.map(\.id), ["fresh"])
+        XCTAssertEqual(preview.mergedPlan.tasks.map(\.id), ["parent", "fresh"])
+    }
+
+    func testReviewedRefreshKeepsQueueAndActualWorkWhileShowingBothEstimates() throws {
+        var current = localPlan()
+        current.sourceID = "source:week"
+        current.tasks[0].sourceID = "source:parent"
+        current.tasks[0].remainingEstimateSeconds = 4_200
+        current.localState.taskOrder = ["parent"]
+        current.localState.workSegments = [segment(taskID: "parent", start: 300, end: 600)]
+
+        var incomingTask = task(id: "different-app-id", title: "Updated", estimate: 10_800)
+        incomingTask.sourceID = "source:parent"
+        let incoming = WeeklyPlan(id: "refresh", sourceID: "source:week", tasks: [incomingTask])
+
+        let preview = try current.previewingExternalImport(incoming)
+
+        XCTAssertEqual(preview.mode, .refreshCurrentPlan)
+        XCTAssertEqual(preview.mergedPlan.localState.taskOrder, ["parent"])
+        XCTAssertEqual(preview.mergedPlan.actualWorkSeconds(for: "parent"), 300)
+        XCTAssertEqual(preview.mergedPlan.tasks[0].remainingEstimateSeconds, 4_200)
+        XCTAssertEqual(preview.sourceEstimateChanges["parent"], SourceEstimateComparison(
+            sourceOriginalSeconds: 10_800, sourceRemainingSeconds: 10_800,
+            localRemainingSeconds: 4_200, actualWorkSeconds: 300
+        ))
+    }
+
+    func testExternalImportRejectsTaskWithoutStableSourceIdentity() throws {
+        let incoming = WeeklyPlan(id: "week", sourceID: "source:week", tasks: [task(id: "task", title: "Unsafe", estimate: 600)])
+
+        XCTAssertThrowsError(try localPlan().previewingExternalImport(incoming)) { error in
+            XCTAssertEqual((error as? PlanValidationError)?.path, "tasks[0].sourceID")
+        }
+    }
+
+    func testExternalSourceHierarchyCanImportWithoutForgingLocalAdjustmentHistory() throws {
+        var parent = task(id: "parent-source", title: "Research", estimate: 7_200)
+        parent.sourceID = "source:parent"
+        var child = task(id: "child-source", title: "Read", estimate: 1_800)
+        child.sourceID = "source:child"
+        child.parentTaskID = "parent-source"
+        child.parentEstimateAccounting = .usesParentEstimate
+        let incoming = WeeklyPlan(id: "week", sourceID: "source:week", tasks: [parent, child])
+
+        let preview = try WeeklyPlan(id: "local", tasks: []).previewingExternalImport(incoming)
+
+        let importedChild = try XCTUnwrap(preview.mergedPlan.tasks.first { $0.sourceID == "source:child" })
+        XCTAssertEqual(importedChild.parentTaskID, "parent-source")
+        XCTAssertTrue(preview.mergedPlan.localState.estimateAdjustments.isEmpty)
+    }
+
     private func makeStore() -> UserDefaultsWeeklyPlanStore {
         let suite = "WeeklyPlanStoreTests.\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!

@@ -131,6 +131,34 @@ focus interval.
    turn a suggestion into a fixed appointment. Start the rhythm and confirm its
    cadence remains unchanged.
 
+## Reviewed external-plan import (#43)
+
+Use a JSON transfer document with a stable plan `sourceID`, stable source IDs on every
+task, a fixed meeting, one flexible timed task, one unknown-effort task, and one
+unscheduled task. The checked-in synthetic example is a persisted catalog rather than
+a transfer document, so remove `localState` and give its local example tasks source IDs
+before using it as a file-import fixture.
+
+1. Complete or partially work on a local task, reorder another local task, then choose
+   **Import reviewed plan** from **Choose today's rhythm** and select the fixture in the
+   Files picker. Confirm the review lists tasks, known and unknown effort, the planning
+   window, fixed commitment, and proposed task context before anything is saved.
+2. Cancel the review, relaunch, and confirm the local tasks, queue order, progress, and
+   active run (if any) are unchanged. Repeat with malformed JSON and with a task missing
+   `sourceID`; confirm the error identifies the problem and no data changes.
+3. Apply the reviewed import. Confirm imported and local tasks use the same queue,
+   Today forecast, and focus behavior; importing must not start, stop, or reshape a
+   rhythm interval.
+4. Add a local child to an imported 2.5-hour parent, allocate or add one hour, do some
+   focused work, then reimport the same source with a changed parent estimate. Confirm
+   the review shows the source proposal beside the local remaining estimate and actual
+   work. Apply it and confirm local child accounting, work history, completion state,
+   and queue choice survive without duplicate tasks.
+5. Refresh again with that source task omitted. Confirm it is named as missing but is
+   not deleted. Import a document with a different plan `sourceID`; confirm unfinished
+   earlier tasks appear in **Carryover inbox**, not the active queue, until **Add to
+   queue** is chosen for each one.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,
