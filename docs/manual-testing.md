@@ -389,6 +389,29 @@ Start a rhythm with **Grade assignments** selected and the scaled clock enabled.
 4. In the task details after the interval, confirm both tasks show focused time. The
    time spent on the email must be credited to the email, and the rest to grading.
 
+## Day-end work review and carryover (#50)
+
+Use **Load debug fixture** → **Mixed-origin tasks**, select a task, and run a short
+scaled rhythm. Complete one task, leave a parent with a local child unfinished, and
+postpone another task.
+
+1. At day end, or after choosing **End for today** and discarding the remaining rhythm,
+   open **Today**. Confirm **Work review** lists completed and unfinished tasks, actual
+   focused time, known remaining work, and any time-unknown work without counting a
+   child twice in the total.
+2. Check a parent with children. Its own focused time and its child-inclusive rollup
+   should be visibly distinct. Completing a child must not silently complete its parent
+   or sibling.
+3. On an unfinished local child, choose **Carry forward for review**, relaunch, and
+   confirm it still shows **For later**. Its parent relationship, estimate choice,
+   deadline/tags, and focused-time history must remain unchanged.
+4. Choose **Return to active queue**. Confirm the task reappears without being marked
+   complete and can be selected normally. Repeat with a task with no estimate; it must
+   continue to say that its time is unknown.
+5. Confirm stopping early or taking breaks never credits rest as task work. The next-day
+   forecast may flag capacity, deadline, or prerequisite concerns, but it must not
+   silently schedule or complete anything.
+
 ## Create local tasks (#67)
 
 On **Choose today’s rhythm**, open **Task queue** and choose **Add task**.

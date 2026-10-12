@@ -195,6 +195,24 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         self = copy
     }
 
+    /// Moves one unfinished task into the reviewed carryover inbox.  Carryover is
+    /// deliberately an explicit state: ending a day never changes completion,
+    /// estimates, source identity, hierarchy, or the record of focus already done.
+    mutating func carryTaskForward(_ taskID: String) throws {
+        guard let task = tasks.first(where: { $0.id == taskID }),
+              task.completedAt == nil, task.abandonedAt == nil else {
+            throw PlanValidationError(path: "localState.carryoverTaskIDs", message: "Only unfinished tasks can be carried forward.")
+        }
+        var copy = self
+        if !copy.localState.carryoverTaskIDs.contains(taskID) {
+            copy.localState.carryoverTaskIDs.append(taskID)
+        }
+        if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
+        copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        try copy.validate()
+        self = copy
+    }
+
     /// Completion is an explicit decision. Reaching a zero remaining estimate never
     /// calls this automatically: estimates describe expectation, while work segments
     /// describe what actually happened.
@@ -462,6 +480,66 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         fixedCommitments = try values.decodeIfPresent([FixedCommitment].self, forKey: .fixedCommitments) ?? []
         localState = try values.decodeIfPresent(PlanLocalState.self, forKey: .localState) ?? PlanLocalState()
         try validate()
+    }
+}
+
+/// The end-of-day review is a read-only reconciliation.  Totals use each work
+/// segment once; parent rollups are supplied only to explain a hierarchy and are
+/// never added into the day total again.
+struct DayEndReview: Equatable {
+    struct TaskRow: Equatable, Identifiable {
+        var task: PlannedTask
+        var parentTitle: String?
+        var ownActualWorkSeconds: TimeInterval
+        var rolledUpActualWorkSeconds: TimeInterval
+        var rolledUpRemainingEstimateSeconds: TimeInterval?
+        var hasUnknownRemainingEffort: Bool
+
+        var id: String { task.id }
+    }
+
+    var taskRows: [TaskRow]
+    var completedTaskIDs: [String]
+    var unfinishedTaskIDs: [String]
+    var carryoverTaskIDs: [String]
+    var actualWorkSeconds: TimeInterval
+    var remainingKnownEffortSeconds: TimeInterval
+    var hasUnknownRemainingEffort: Bool
+    var forecast: TaskForecast
+}
+
+extension WeeklyPlan {
+    func dayEndReview(at date: Date, calendar: Calendar = .current) -> DayEndReview {
+        let taskRows = orderedTasks.map { task -> DayEndReview.TaskRow in
+            let included = descendantIDs(of: task.id).union([task.id])
+            let includedTasks = tasks.filter { included.contains($0.id) && $0.completedAt == nil && $0.abandonedAt == nil }
+            let ownActual = actualWorkSeconds(for: task.id)
+            let rolledUpActual = localState.workSegments
+                .filter { $0.taskID.map(included.contains) ?? false }
+                .reduce(0) { $0 + $1.duration }
+            let unknown = includedTasks.contains { $0.remainingEstimateSeconds == nil }
+            let remaining = unknown ? nil : includedTasks.compactMap(\.remainingEstimateSeconds).reduce(0, +)
+            return .init(task: task, parentTitle: task.parentTaskID.flatMap { parentID in tasks.first(where: { $0.id == parentID })?.title }, ownActualWorkSeconds: ownActual,
+                         rolledUpActualWorkSeconds: rolledUpActual,
+                         rolledUpRemainingEstimateSeconds: remaining,
+                         hasUnknownRemainingEffort: unknown)
+        }
+        let dayStart = calendar.startOfDay(for: date)
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: dayStart)!
+        let actual = localState.workSegments
+            .filter { $0.time.start >= dayStart && $0.time.start < nextDay }
+            .reduce(0) { $0 + $1.duration }
+        let unfinished = tasks.filter { $0.completedAt == nil && $0.abandonedAt == nil }.map(\.id)
+        return DayEndReview(
+            taskRows: taskRows,
+            completedTaskIDs: tasks.compactMap { $0.completedAt == nil ? nil : $0.id },
+            unfinishedTaskIDs: unfinished,
+            carryoverTaskIDs: localState.carryoverTaskIDs,
+            actualWorkSeconds: actual,
+            remainingKnownEffortSeconds: remainingEffortSeconds,
+            hasUnknownRemainingEffort: hasUnknownRemainingEffort,
+            forecast: todayPreview(at: date, calendar: calendar).forecast
+        )
     }
 }
 

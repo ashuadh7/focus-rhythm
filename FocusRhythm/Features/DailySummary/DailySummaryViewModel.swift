@@ -30,21 +30,26 @@ final class DailySummaryViewModel {
     private(set) var adjustments: [RunAdjustment] = []
     private(set) var runSummaries: [DailyRunSummary] = []
     private(set) var totalWaterMl: Int = 0
+    private(set) var taskReview: DayEndReview?
+    private(set) var carryoverMessage: String?
 
     private let sessionStore: FocusSessionStoring
     private let waterLogStore: WaterLogStoring
     private let runHistoryStore: RunHistoryStoring
+    private let planStore: WeeklyPlanStoring
     private let now: () -> Date
 
     init(
         sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
         waterLogStore: WaterLogStoring = UserDefaultsWaterLogStore(),
         runHistoryStore: RunHistoryStoring = UserDefaultsRunHistoryStore(),
+        planStore: WeeklyPlanStoring = UserDefaultsWeeklyPlanStore(),
         now: @escaping () -> Date = Date.init
     ) {
         self.sessionStore = sessionStore
         self.waterLogStore = waterLogStore
         self.runHistoryStore = runHistoryStore
+        self.planStore = planStore
         self.now = now
         refresh()
     }
@@ -95,5 +100,30 @@ final class DailySummaryViewModel {
         activities = runSummaries.flatMap(\.activities)
         adjustments = runSummaries.flatMap(\.adjustments)
         totalWaterMl = waterLogStore.logs(on: today).reduce(0) { $0 + $1.amountMl }
+        taskReview = planStore.load()?.dayEndReview(at: today)
+    }
+
+    func carryForward(_ taskID: String) {
+        guard var plan = planStore.load() else { return }
+        do {
+            try plan.carryTaskForward(taskID)
+            try planStore.save(plan)
+            carryoverMessage = "Saved for later review. It has not been marked done or changed."
+            refresh()
+        } catch {
+            carryoverMessage = error.localizedDescription
+        }
+    }
+
+    func returnFromCarryover(_ taskID: String) {
+        guard var plan = planStore.load() else { return }
+        do {
+            try plan.bringCarryoverIntoQueue(taskID)
+            try planStore.save(plan)
+            carryoverMessage = "Returned to the active queue."
+            refresh()
+        } catch {
+            carryoverMessage = error.localizedDescription
+        }
     }
 }

@@ -374,6 +374,45 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertEqual(preview.suggestedTaskIDs, ["draft"])
     }
 
+    func testReviewedCarryoverKeepsIdentityHierarchyAndEstimateHistory() throws {
+        var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "parent", title: "Imported parent", estimate: 3_600)])
+        plan.tasks[0].sourceID = "source:parent"
+        try plan.addChild(makeTask(id: "child", title: "Local child", estimate: 600),
+                          to: "parent", accounting: .usesParentEstimate, recordedAt: now)
+
+        try plan.carryTaskForward("child")
+        let restored = try WeeklyPlanJSON.decode(WeeklyPlanJSON.encode(plan))
+
+        XCTAssertEqual(restored.localState.carryoverTaskIDs, ["child"])
+        XCTAssertEqual(task("child", in: restored).parentTaskID, "parent")
+        XCTAssertNil(task("child", in: restored).sourceID)
+        XCTAssertEqual(restored.localState.estimateAdjustments.single?.accounting, .usesParentEstimate)
+        XCTAssertEqual(restored.taskQueue(at: now).readyTasks.map(\.id), ["parent"])
+
+        var returned = restored
+        try returned.bringCarryoverIntoQueue("child")
+        XCTAssertTrue(returned.taskQueue(at: now).readyTasks.contains { $0.id == "child" })
+    }
+
+    func testDayEndReviewUsesSegmentsOnceButProvidesParentRollup() throws {
+        var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "parent", title: "Parent", estimate: 3_600)])
+        try plan.addChild(makeTask(id: "child", title: "Child", estimate: 600),
+                          to: "parent", accounting: .usesParentEstimate, recordedAt: now)
+        let interval = ScheduledInterval(kind: .focus, startDate: now, endDate: now.addingTimeInterval(600), isAnchored: false)
+        plan.localState.workSegments = [try TaskWorkSegment(taskID: "child", runID: UUID(), focusInterval: interval,
+                                                            start: now, end: now.addingTimeInterval(300))]
+
+        let review = plan.dayEndReview(at: now)
+        let parent = try XCTUnwrap(review.taskRows.first { $0.id == "parent" })
+        let child = try XCTUnwrap(review.taskRows.first { $0.id == "child" })
+
+        XCTAssertEqual(review.actualWorkSeconds, 300)
+        XCTAssertEqual(parent.ownActualWorkSeconds, 0)
+        XCTAssertEqual(parent.rolledUpActualWorkSeconds, 300)
+        XCTAssertEqual(child.ownActualWorkSeconds, 300)
+        XCTAssertEqual(review.remainingKnownEffortSeconds, 3_600)
+    }
+
     func testUnknownVersionAndInvalidDatesAreRejected() {
         XCTAssertThrowsError(try WeeklyPlanJSON.decode(Data(#"{"schemaVersion":2}"#.utf8)))
         XCTAssertFalse(WeeklyPlan.isValidDay("2026-02-29"))

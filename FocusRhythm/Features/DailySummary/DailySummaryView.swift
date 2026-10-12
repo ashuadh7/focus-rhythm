@@ -29,6 +29,9 @@ struct DailySummaryView: View {
                 if !viewModel.runSummaries.isEmpty {
                     detailSection
                 }
+                if let review = viewModel.taskReview {
+                    taskReviewSection(review)
+                }
                 }
             }
             .padding(.vertical, 32)
@@ -111,6 +114,92 @@ struct DailySummaryView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 32)
+    }
+
+    private func taskReviewSection(_ review: DayEndReview) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Work review")
+                .font(.headline)
+            Text("Focused \(durationText(review.actualWorkSeconds)) on tasks. \(review.completedTaskIDs.count) completed · \(review.unfinishedTaskIDs.count) unfinished")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if review.hasUnknownRemainingEffort {
+                Text("Some unfinished work has time unknown.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(durationText(review.remainingKnownEffortSeconds)) known work remains.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            if !review.forecast.conflicts.isEmpty {
+                Text("Your next-day preview has capacity, deadline, or prerequisite items to review.")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+            ForEach(review.taskRows) { row in
+                taskReviewRow(row, carriedForward: review.carryoverTaskIDs.contains(row.id))
+            }
+            if let message = viewModel.carryoverMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 32)
+    }
+
+    private func taskReviewRow(_ row: DayEndReview.TaskRow, carriedForward: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(row.task.title)
+                    .font(.body.weight(.medium))
+                Spacer()
+                if row.task.completedAt != nil {
+                    Text("Done")
+                        .foregroundStyle(.green)
+                } else if carriedForward {
+                    Text("For later")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Unfinished")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let parent = row.parentTitle {
+                Text("Part of \(parent)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text("This task: \(durationText(row.ownActualWorkSeconds)) focused · \(remainingText(row.task.remainingEstimateSeconds))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if row.task.parentTaskID == nil, row.rolledUpActualWorkSeconds != row.ownActualWorkSeconds {
+                Text("Including child tasks: \(durationText(row.rolledUpActualWorkSeconds)) focused · \(rollupRemainingText(row))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if row.task.completedAt == nil && row.task.abandonedAt == nil {
+                Button(carriedForward ? "Return to active queue" : "Carry forward for review") {
+                    if carriedForward {
+                        viewModel.returnFromCarryover(row.id)
+                    } else {
+                        viewModel.carryForward(row.id)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func remainingText(_ seconds: TimeInterval?) -> String {
+        seconds.map { "\(durationText($0)) remaining" } ?? "time unknown"
+    }
+
+    private func rollupRemainingText(_ row: DayEndReview.TaskRow) -> String {
+        row.hasUnknownRemainingEffort ? "time unknown remains" : remainingText(row.rolledUpRemainingEstimateSeconds)
     }
 
     private func adjustmentText(_ adjustment: RunAdjustment) -> String {
