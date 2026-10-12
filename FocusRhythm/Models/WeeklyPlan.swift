@@ -65,7 +65,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
     ) -> TaskQueue {
         let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
         let carryover = Set(localState.carryoverTaskIDs)
-        let ordered = orderedTasks.filter { task in
+        let eligible = orderedTasks.filter { task in
             let classification = localState.classifications[task.id] ?? .default
             guard task.completedAt == nil, task.abandonedAt == nil,
                   !task.needsEstimateRevision,
@@ -77,14 +77,25 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
             return availableFocusSeconds >= minimum
         }
 
+        let automaticallyAtRisk = recommendationDeadlineRiskTaskIDs()
+        let riskIDs = deadlineAtRiskTaskIDs.union(automaticallyAtRisk)
+        let ordered = eligible.sorted { left, right in
+            let leftScore = recommendationScore(for: left, at: date, availableFocusSeconds: availableFocusSeconds, deadlineAtRiskTaskIDs: riskIDs)
+            let rightScore = recommendationScore(for: right, at: date, availableFocusSeconds: availableFocusSeconds, deadlineAtRiskTaskIDs: riskIDs)
+            if leftScore != rightScore { return leftScore > rightScore }
+            let leftOrder = left.order ?? Int.max
+            let rightOrder = right.order ?? Int.max
+            return leftOrder == rightOrder ? left.id < right.id : leftOrder < rightOrder
+        }
+
         let deferrals = Dictionary(uniqueKeysWithValues: localState.deferrals.map { ($0.taskID, $0) })
         let returnedForDeadline = ordered.filter {
             guard let deferral = deferrals[$0.id] else { return false }
-            return deferral.until > date && deadlineAtRiskTaskIDs.contains($0.id)
+            return deferral.until > date && riskIDs.contains($0.id)
         }.map(\.id)
         let deferred = ordered.filter {
             guard let deferral = deferrals[$0.id] else { return false }
-            return deferral.until > date && !deadlineAtRiskTaskIDs.contains($0.id)
+            return deferral.until > date && !riskIDs.contains($0.id)
         }
         let ready = ordered.filter { task in
             !deferred.contains(where: { $0.id == task.id })
@@ -94,7 +105,10 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
             deferredTasks: deferred,
             selectedTaskID: localState.selectedTaskID,
             nextDeferredReturn: deferred.map { deferrals[$0.id]!.until }.min(),
-            returnedForDeadline: returnedForDeadline
+            returnedForDeadline: returnedForDeadline,
+            recommendationReasons: Dictionary(uniqueKeysWithValues: ready.map {
+                ($0.id, recommendationReason(for: $0, at: date, deadlineAtRiskTaskIDs: riskIDs))
+            })
         )
     }
 
@@ -696,8 +710,10 @@ struct TaskQueue: Equatable {
     var selectedTaskID: String?
     var nextDeferredReturn: Date?
     var returnedForDeadline: [String]
+    var recommendationReasons: [String: String]
 
     var suggestedTask: PlannedTask? { readyTasks.first }
+    var suggestedTaskReason: String? { suggestedTask.flatMap { recommendationReasons[$0.id] } }
     var selectableTasks: [PlannedTask] { readyTasks + deferredTasks }
 }
 
@@ -707,13 +723,8 @@ extension WeeklyPlan {
     /// while the forecast explicitly reports that capacity is unknown.
     func todayPreview(at date: Date, calendar: Calendar = .current) -> TodayPreview {
         let day = Self.dayKey(for: date, calendar: calendar)
-        let todayWindows = availability?.first(where: { $0.day == day })?.windows ?? []
-        let available = todayWindows.reduce(0) { $0 + max(0, $1.duration) }
-        let capacity = availability.map { windows in
-            Dictionary(uniqueKeysWithValues: windows.map { item in
-                (item.day, item.windows.reduce(0) { $0 + max(0, $1.duration) })
-            })
-        } ?? [:]
+        let capacity = focusCapacityByDay(at: date)
+        let available = capacity[day] ?? 0
         let forecast = forecast(capacityByDay: capacity)
         let deadlinesAtRisk = Set(forecast.conflicts.compactMap { conflict -> String? in
             if case let .deadlineAtRisk(taskID) = conflict { return taskID }
@@ -731,9 +742,91 @@ extension WeeklyPlan {
         )
     }
 
+    /// Real focus capacity is availability less overlapping fixed commitments.
+    /// It is intentionally derived instead of persisted: a commitment remains an
+    /// anchor and never becomes a movable task allocation.
+    func focusCapacityByDay(at date: Date? = nil) -> [String: TimeInterval] {
+        guard let availability else { return [:] }
+        return Dictionary(uniqueKeysWithValues: availability.map { day in
+            let seconds = day.windows.reduce(0) { total, window in
+                let start = date.map { max(window.start, $0) } ?? window.start
+                guard start < window.end else { return total }
+                let availableWindow = PlanTimeRange(start: start, end: window.end)
+                let occupied = fixedCommitments.reduce(0) { occupied, commitment in
+                    occupied + overlapSeconds(availableWindow, commitment.time)
+                }
+                return total + max(0, availableWindow.duration - occupied)
+            }
+            return (day.day, seconds)
+        })
+    }
+
     private static func dayKey(for date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private func overlapSeconds(_ left: PlanTimeRange, _ right: PlanTimeRange) -> TimeInterval {
+        max(0, min(left.end, right.end).timeIntervalSince(max(left.start, right.start)))
+    }
+
+    private func recommendationDeadlineRiskTaskIDs() -> Set<String> {
+        guard availability != nil else { return [] }
+        return Set(forecast(capacityByDay: focusCapacityByDay()).conflicts.compactMap { conflict in
+            if case let .deadlineAtRisk(taskID) = conflict { return taskID }
+            return nil
+        })
+    }
+
+    private func recommendationScore(
+        for task: PlannedTask, at date: Date, availableFocusSeconds: TimeInterval?, deadlineAtRiskTaskIDs: Set<String>
+    ) -> Int {
+        let classification = localState.classifications[task.id] ?? .default
+        let pathDeadline = criticalPathDeadline(for: task.id)
+        let deadlineScore: Int
+        if deadlineAtRiskTaskIDs.contains(task.id) { deadlineScore = 100_000 }
+        else if let pathDeadline {
+            let hours = pathDeadline.timeIntervalSince(date) / 3_600
+            deadlineScore = hours <= 0 ? 80_000 : max(0, 10_000 - Int(hours * 10))
+        } else { deadlineScore = 0 }
+        let quadrantScore: Int
+        switch classification.quadrant {
+        case .urgentImportant: quadrantScore = 800
+        case .notUrgentImportant: quadrantScore = 500
+        case .urgentUnimportant: quadrantScore = 250
+        case .notUrgentUnimportant: quadrantScore = 0
+        }
+        let dependencyScore = descendantIDs(of: task.id).count * 40
+        let chunkScore: Int
+        if let availableFocusSeconds, let estimate = task.remainingEstimateSeconds {
+            chunkScore = estimate <= availableFocusSeconds ? 100 : 0
+        } else {
+            // Unknown effort remains selectable; it simply receives no fit bonus.
+            chunkScore = 0
+        }
+        return deadlineScore + quadrantScore + dependencyScore + chunkScore
+    }
+
+    private func criticalPathDeadline(for taskID: String) -> Date? {
+        let reachable = descendantIDs(of: taskID).union([taskID])
+        return tasks.filter { reachable.contains($0.id) }.compactMap(\.deadline).min()
+    }
+
+    private func recommendationReason(for task: PlannedTask, at date: Date, deadlineAtRiskTaskIDs: Set<String>) -> String {
+        if deadlineAtRiskTaskIDs.contains(task.id) { return "Deadline needs attention" }
+        if let deadline = criticalPathDeadline(for: task.id) {
+            if deadline <= date { return "Overdue" }
+            let calendar = Calendar.current
+            if calendar.isDate(deadline, inSameDayAs: date) { return "Due today" }
+            if descendantIDs(of: task.id).contains(where: { id in tasks.first(where: { $0.id == id })?.deadline == deadline }) {
+                return "Unblocks work due \(deadline.formatted(date: .abbreviated, time: .omitted))"
+            }
+            return "Due \(deadline.formatted(date: .abbreviated, time: .omitted))"
+        }
+        let classification = localState.classifications[task.id] ?? .default
+        if classification.quadrant == .urgentImportant { return "Urgent and important" }
+        if !descendantIDs(of: task.id).isEmpty { return "Unblocks follow-on work" }
+        return "Ready for this focus block"
     }
 
     /// Forecasts unfinished task effort against supplied real focus capacity keyed by

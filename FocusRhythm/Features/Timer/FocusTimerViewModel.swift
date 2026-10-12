@@ -278,13 +278,8 @@ final class FocusTimerViewModel {
         _ = taskDisplayRevision
         guard let plan = planStore?.load() else { return nil }
         guard let task = plan.taskQueue(at: now()).suggestedTask else { return nil }
-        let reason: String
-        if let deadline = task.deadline {
-            reason = "Due \(deadline.formatted(date: .abbreviated, time: .omitted))"
-        } else {
-            reason = "Ready for this focus block"
-        }
-        return SuggestedTask(id: task.id, title: task.title, reason: reason)
+        return SuggestedTask(id: task.id, title: task.title,
+                             reason: plan.taskQueue(at: now()).suggestedTaskReason ?? "Ready for this focus block")
     }
 
     /// Kept as a compact compatibility surface for callers that only need a title.
