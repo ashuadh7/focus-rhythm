@@ -348,6 +348,45 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertEqual(queue.returnedForDeadline, ["urgent"])
     }
 
+    func testRecommendationElevatesAnEligibleCriticalPathBeforeRelatedDrafting() throws {
+        var startingStep = makeTask(id: "control", title: "Control condition", estimate: 1_800)
+        startingStep.order = 2
+        var milestone = makeTask(id: "review", title: "Formative review", estimate: 1_800)
+        milestone.prerequisiteTaskIDs = ["control"]
+        milestone.deadline = now.addingTimeInterval(2 * 60 * 60)
+        var drafting = makeTask(id: "related", title: "Related-work drafting", estimate: 1_800)
+        drafting.order = 0
+        var plan = WeeklyPlan(id: "week", tasks: [drafting, startingStep, milestone])
+        try plan.setClassification(TaskClassification(
+            quadrant: .notUrgentImportant, workKind: .writing,
+            planningState: .actionableTask, isConditionReady: true
+        ), for: "related")
+
+        let queue = plan.taskQueue(at: now)
+
+        XCTAssertEqual(queue.suggestedTask?.id, "control")
+        XCTAssertEqual(queue.suggestedTaskReason, "Unblocks work due \(milestone.deadline!.formatted(date: .abbreviated, time: .omitted))")
+    }
+
+    func testRecommendationUsesCapacityAfterFixedCommitments() {
+        let window = PlanTimeRange(start: now, end: now.addingTimeInterval(2 * 60 * 60))
+        let fixed = FixedCommitment(id: "meeting", sourceID: nil, title: "Checkpoint",
+                                    time: PlanTimeRange(start: now.addingTimeInterval(30 * 60), end: now.addingTimeInterval(60 * 60)))
+        let plan = WeeklyPlan(id: "week", availability: [DailyAvailability(day: "today", windows: [window])],
+                              tasks: [], fixedCommitments: [fixed])
+
+        XCTAssertEqual(plan.focusCapacityByDay()["today"], 90 * 60)
+    }
+
+    func testRecommendationReasonDoesNotPromiseUnknownEffortWillFit() {
+        var task = makeTask(id: "unknown", title: "Investigate", estimate: nil)
+        task.order = 0
+        let plan = WeeklyPlan(id: "week", tasks: [task])
+
+        XCTAssertEqual(plan.taskQueue(at: now, availableFocusSeconds: 10 * 60).suggestedTaskReason,
+                       "Ready for this focus block")
+    }
+
     func testQueueReorderAndDirectSelectionPersistInPlanState() throws {
         let first = makeTask(id: "first", title: "First", estimate: 600)
         let second = makeTask(id: "second", title: "Second", estimate: 600)
@@ -414,7 +453,7 @@ final class WeeklyPlanTests: XCTestCase {
         let preview = plan.todayPreview(at: date, calendar: calendar)
 
         XCTAssertTrue(preview.hasPlanningWindow)
-        XCTAssertEqual(preview.availableFocusSeconds, 7_200)
+        XCTAssertEqual(preview.availableFocusSeconds, 5_400)
         XCTAssertEqual(preview.fixedCommitments.map(\.id), ["meeting"])
         XCTAssertEqual(preview.suggestedTaskIDs, ["draft"])
     }
