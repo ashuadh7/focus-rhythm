@@ -229,6 +229,23 @@ increases the total. Unknown-effort work remains visible as uncertain. A deadlin
 prerequisite conflict should remain explicit, with unplaced work shown as carryover
 rather than silently completed or assigned through a fixed commitment.
 
+## Persistent task queue (#47)
+
+Use **Load debug fixture** → **Local-only day 1**. On **Choose today’s rhythm**, find
+the **Task queue** section.
+
+1. Confirm **Grade assignments** is offered ahead of the postponed coordinator email;
+   the email appears under **Not now** and says when it will return.
+2. Open the options for **Grade assignments**, choose **Not now**, then choose another
+   task. Confirm postponing does not mark grading complete or remove it from the list.
+3. Move a task earlier or later, quit and relaunch, then load the same fixture state
+   again only if you need to reset it. Confirm the order chosen during the run remains
+   after a normal relaunch.
+4. Choose a deferred task directly. Confirm it becomes the selected next task and is
+   no longer shown under **Not now**.
+5. Use the mixed-origin fixture too. Confirm imported and local child tasks appear in
+   one queue and can be selected or postponed the same way.
+
 ## Planned v0.3 verification coverage
 
 These are acceptance targets for features not implemented yet. Each implementation

@@ -14,6 +14,8 @@ final class RhythmSetupViewModel {
     private(set) var preview: GeneratedDailySchedule?
     private(set) var runPreview: GeneratedDailySchedule?
     private(set) var validationMessage: String?
+    private(set) var taskQueue: TaskQueue?
+    private(set) var taskQueueMessage: String?
     private(set) var isUsingOneTimeRhythm = false
     var runEndMode: RunEndMode = .stopAt
     var stopAt = TimeOfDay(hour: 17, minute: 0)
@@ -57,6 +59,7 @@ final class RhythmSetupViewModel {
         self.draft = library.variations.first { $0.id == initialID }?.rhythm ?? Self.exampleRhythm
         self.stopAt = self.draft.dayEnd
         refreshPreview()
+        refreshTaskQueue()
     }
 
     var variations: [RhythmVariation] { library.variations }
@@ -225,6 +228,52 @@ final class RhythmSetupViewModel {
             preview = nil
         }
         refreshRunPreview()
+    }
+
+    func refreshTaskQueue() {
+        taskQueue = planStore.load()?.taskQueue(at: now())
+    }
+
+    func selectQueuedTask(_ taskID: String) {
+        updateTaskQueue { plan in try plan.selectTask(taskID) }
+    }
+
+    func postponeQueuedTask(_ taskID: String) {
+        updateTaskQueue { plan in try plan.deferTask(taskID, at: now()) }
+    }
+
+    func moveQueuedTask(_ taskID: String, by offset: Int) {
+        do {
+            guard var plan = planStore.load() else { return }
+            let currentOrder = plan.localState.taskOrder ?? plan.tasks.sorted {
+                let left = $0.order ?? Int.max
+                let right = $1.order ?? Int.max
+                return left == right ? $0.id < $1.id : left < right
+            }.map(\.id)
+            guard let index = currentOrder.firstIndex(of: taskID) else { return }
+            let destination = index + offset
+            guard currentOrder.indices.contains(destination) else { return }
+            var reordered = currentOrder
+            reordered.swapAt(index, destination)
+            try plan.reorderTasks(reordered)
+            try planStore.save(plan)
+            taskQueueMessage = nil
+            refreshTaskQueue()
+        } catch {
+            taskQueueMessage = error.localizedDescription
+        }
+    }
+
+    private func updateTaskQueue(_ mutation: (inout WeeklyPlan) throws -> Void) {
+        do {
+            guard var plan = planStore.load() else { return }
+            try mutation(&plan)
+            try planStore.save(plan)
+            taskQueueMessage = nil
+            refreshTaskQueue()
+        } catch {
+            taskQueueMessage = error.localizedDescription
+        }
     }
 
     func refreshRunPreview() {

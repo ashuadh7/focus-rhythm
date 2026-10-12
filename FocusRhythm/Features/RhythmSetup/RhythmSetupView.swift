@@ -23,6 +23,7 @@ struct RhythmSetupView: View {
                     Button("Create rhythm") { createAndEditVariation() }
                 } else {
                     variationPicker
+                    taskQueue
                     endCondition
                     preview
                     actions
@@ -45,6 +46,78 @@ struct RhythmSetupView: View {
             .sheet(isPresented: $isEditing, onDismiss: viewModel.cancelDraftEditing) {
                 RhythmEditorView(viewModel: viewModel)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var taskQueue: some View {
+        if let queue = viewModel.taskQueue, !queue.selectableTasks.isEmpty {
+            Section("Task queue") {
+                if let suggested = queue.suggestedTask {
+                    Text("Suggested next: \(suggested.title)")
+                        .font(.subheadline.weight(.semibold))
+                }
+
+                ForEach(queue.readyTasks) { task in
+                    queueRow(task, isDeferred: false, queue: queue)
+                }
+
+                if !queue.deferredTasks.isEmpty {
+                    Section("Not now") {
+                        ForEach(queue.deferredTasks) { task in
+                            queueRow(task, isDeferred: true, queue: queue)
+                        }
+                    }
+                    if let returnDate = queue.nextDeferredReturn {
+                        Text("Postponed work returns at \(returnDate.formatted(date: .omitted, time: .shortened)).")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let message = viewModel.taskQueueMessage {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+            } footer: {
+                Text("Choose a task for your next focus block, change its priority, or postpone it briefly. Postponing is not completion.")
+            }
+        }
+    }
+
+    private func queueRow(_ task: PlannedTask, isDeferred: Bool, queue: TaskQueue) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(task.title)
+                    .font(.body.weight(queue.selectedTaskID == task.id ? .semibold : .regular))
+                if let project = task.project {
+                    Text(project)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if task.hasUnknownEstimate {
+                    Text("Time unknown")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if queue.returnedForDeadline.contains(task.id) {
+                    Text("Returned because its deadline needs attention")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            Spacer()
+            Menu {
+                Button("Choose") { viewModel.selectQueuedTask(task.id) }
+                if !isDeferred {
+                    Button("Not now") { viewModel.postponeQueuedTask(task.id) }
+                }
+                Button("Move earlier") { viewModel.moveQueuedTask(task.id, by: -1) }
+                Button("Move later") { viewModel.moveQueuedTask(task.id, by: 1) }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("Options for \(task.title)")
         }
     }
 

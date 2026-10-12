@@ -151,6 +151,61 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertTrue(forecast.conflicts.contains(.prerequisiteIncomplete(taskID: "dependent")))
     }
 
+    func testQueueOrdersTasksAndKeepsNotNowTaskOutOfImmediateSuggestion() throws {
+        var first = makeTask(id: "first", title: "First", estimate: 600)
+        first.order = 1
+        var second = makeTask(id: "second", title: "Second", estimate: nil)
+        second.order = 0
+        var plan = WeeklyPlan(id: "local", tasks: [first, second])
+
+        try plan.deferTask("second", at: now, for: 30 * 60)
+        let queue = plan.taskQueue(at: now.addingTimeInterval(60))
+
+        XCTAssertEqual(queue.suggestedTask?.id, "first")
+        XCTAssertEqual(queue.deferredTasks.map(\.id), ["second"])
+        XCTAssertEqual(queue.nextDeferredReturn, now.addingTimeInterval(30 * 60))
+        XCTAssertEqual(queue.selectableTasks.map(\.id), ["first", "second"])
+    }
+
+    func testQueueReturnsDeferredTaskForKnownDeadlineRisk() throws {
+        let task = makeTask(id: "urgent", title: "Urgent", estimate: 600)
+        var plan = WeeklyPlan(id: "local", tasks: [task])
+        try plan.deferTask("urgent", at: now, for: 30 * 60)
+
+        let queue = plan.taskQueue(at: now.addingTimeInterval(60), deadlineAtRiskTaskIDs: ["urgent"])
+
+        XCTAssertEqual(queue.suggestedTask?.id, "urgent")
+        XCTAssertEqual(queue.deferredTasks, [])
+        XCTAssertEqual(queue.returnedForDeadline, ["urgent"])
+    }
+
+    func testQueueReorderAndDirectSelectionPersistInPlanState() throws {
+        let first = makeTask(id: "first", title: "First", estimate: 600)
+        let second = makeTask(id: "second", title: "Second", estimate: 600)
+        var plan = WeeklyPlan(id: "local", tasks: [first, second])
+
+        try plan.reorderTasks(["second", "first"])
+        try plan.deferTask("second", at: now)
+        try plan.selectTask("second")
+
+        XCTAssertEqual(plan.localState.taskOrder, ["second", "first"])
+        XCTAssertEqual(plan.localState.selectedTaskID, "second")
+        XCTAssertTrue(plan.localState.deferrals.isEmpty)
+        XCTAssertEqual(plan.taskQueue(at: now).suggestedTask?.id, "second")
+    }
+
+    func testQueueExcludesCompletedAndPrerequisiteBlockedWork() {
+        var completed = makeTask(id: "done", title: "Done", estimate: 600)
+        completed.completedAt = now
+        var dependent = makeTask(id: "later", title: "Later", estimate: 600)
+        dependent.prerequisiteTaskIDs = ["done"]
+        var blocked = makeTask(id: "blocked", title: "Blocked", estimate: 600)
+        blocked.prerequisiteTaskIDs = ["later"]
+        let plan = WeeklyPlan(id: "local", tasks: [completed, dependent, blocked])
+
+        XCTAssertEqual(plan.taskQueue(at: now).readyTasks.map(\.id), ["later"])
+    }
+
     func testUnknownVersionAndInvalidDatesAreRejected() {
         XCTAssertThrowsError(try WeeklyPlanJSON.decode(Data(#"{"schemaVersion":2}"#.utf8)))
         XCTAssertFalse(WeeklyPlan.isValidDay("2026-02-29"))
