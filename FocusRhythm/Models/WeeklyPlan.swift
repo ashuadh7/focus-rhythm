@@ -465,6 +465,22 @@ struct TaskForecast: Equatable {
     var knownShortfallSeconds: TimeInterval { max(0, knownDemandSeconds - knownCapacitySeconds) }
 }
 
+/// The small, execution-facing answer to “what does today look like?”  It is a
+/// forecast, not a schedule: only fixed commitments are anchors and task
+/// placements remain suggestions until the person starts work.
+struct TodayPreview: Equatable {
+    var day: String
+    var queue: TaskQueue
+    var forecast: TaskForecast
+    var fixedCommitments: [FixedCommitment]
+    var hasPlanningWindow: Bool
+    var availableFocusSeconds: TimeInterval
+
+    var suggestedTaskIDs: [String] {
+        forecast.placements.filter { $0.day == day }.map(\.taskID)
+    }
+}
+
 struct DailyAvailability: Codable, Equatable {
     var day: String
     var windows: [PlanTimeRange]
@@ -516,6 +532,40 @@ struct TaskQueue: Equatable {
 }
 
 extension WeeklyPlan {
+    /// Builds a non-persisting preview for the current day.  A catalog with no
+    /// imported planning window is fully supported: its queue is still useful,
+    /// while the forecast explicitly reports that capacity is unknown.
+    func todayPreview(at date: Date, calendar: Calendar = .current) -> TodayPreview {
+        let day = Self.dayKey(for: date, calendar: calendar)
+        let todayWindows = availability?.first(where: { $0.day == day })?.windows ?? []
+        let available = todayWindows.reduce(0) { $0 + max(0, $1.duration) }
+        let capacity = availability.map { windows in
+            Dictionary(uniqueKeysWithValues: windows.map { item in
+                (item.day, item.windows.reduce(0) { $0 + max(0, $1.duration) })
+            })
+        } ?? [:]
+        let forecast = forecast(capacityByDay: capacity)
+        let deadlinesAtRisk = Set(forecast.conflicts.compactMap { conflict -> String? in
+            if case let .deadlineAtRisk(taskID) = conflict { return taskID }
+            return nil
+        })
+        return TodayPreview(
+            day: day,
+            queue: taskQueue(at: date, availableFocusSeconds: availability == nil ? nil : available,
+                             deadlineAtRiskTaskIDs: deadlinesAtRisk),
+            forecast: forecast,
+            fixedCommitments: fixedCommitments.filter { calendar.isDate($0.time.start, inSameDayAs: date) }
+                .sorted { $0.time.start < $1.time.start },
+            hasPlanningWindow: availability != nil,
+            availableFocusSeconds: available
+        )
+    }
+
+    private static func dayKey(for date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
     /// Forecasts unfinished task effort against supplied real focus capacity keyed by
     /// planning day. Tasks remain eligible when capacity is unknown; the result says
     /// so rather than assuming zero capacity or a zero estimate.

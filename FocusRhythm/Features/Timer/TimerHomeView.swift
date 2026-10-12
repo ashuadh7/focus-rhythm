@@ -4,6 +4,7 @@ struct TimerHomeView: View {
     @State private var viewModel: FocusTimerViewModel
     @State private var waterLoggingViewModel: WaterLoggingViewModel
     @State private var isShowingSummary = false
+    @State private var isShowingTodayFlow = false
     @State private var holdProgress: CGFloat = 0
     @State private var holdTimer: Timer?
     @State private var pickerDuration: TimeInterval = FocusTimerViewModel.defaultBreakDuration
@@ -55,6 +56,9 @@ struct TimerHomeView: View {
             .sheet(isPresented: $isShowingSummary) {
                 DailySummaryView(now: { clock.now })
             }
+            .sheet(isPresented: $isShowingTodayFlow) {
+                TodayFlowView(clock: clock)
+            }
             .sheet(isPresented: Binding(
                 get: { viewModel.isSelectingBreakDuration },
                 set: { if !$0 { viewModel.cancelBreakSelection() } }
@@ -89,7 +93,7 @@ struct TimerHomeView: View {
         VStack(spacing: 32) {
             HStack {
                 Spacer()
-                Button("Today") { isShowingSummary = true }
+                Button("Today") { isShowingTodayFlow = true }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

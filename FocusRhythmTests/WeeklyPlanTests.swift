@@ -298,6 +298,36 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertEqual(plan.taskQueue(at: now).readyTasks.map(\.id), ["later"])
     }
 
+    func testTodayPreviewWorksWithoutPlanningWindows() {
+        let task = makeTask(id: "next", title: "Start anywhere", estimate: 1_800)
+        let plan = WeeklyPlan(id: "local", tasks: [task])
+
+        let preview = plan.todayPreview(at: now)
+
+        XCTAssertFalse(preview.hasPlanningWindow)
+        XCTAssertEqual(preview.queue.suggestedTask?.id, "next")
+        XCTAssertTrue(preview.forecast.conflicts.contains(.missingFutureAvailability))
+        XCTAssertTrue(preview.suggestedTaskIDs.isEmpty)
+    }
+
+    func testTodayPreviewKeepsCommitmentsFixedAndForecastsSuggestions() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let day = "2027-01-15"
+        let start = Date(timeIntervalSince1970: 1_800_018_000)
+        let task = makeTask(id: "draft", title: "Draft", estimate: 3_600)
+        let commitment = FixedCommitment(id: "meeting", sourceID: nil, title: "Meeting", time: PlanTimeRange(start: start, end: start.addingTimeInterval(1_800)))
+        let plan = WeeklyPlan(id: "plan", availability: [DailyAvailability(day: day, windows: [PlanTimeRange(start: start, end: start.addingTimeInterval(7_200))])], tasks: [task], fixedCommitments: [commitment])
+
+        let preview = plan.todayPreview(at: date, calendar: calendar)
+
+        XCTAssertTrue(preview.hasPlanningWindow)
+        XCTAssertEqual(preview.availableFocusSeconds, 7_200)
+        XCTAssertEqual(preview.fixedCommitments.map(\.id), ["meeting"])
+        XCTAssertEqual(preview.suggestedTaskIDs, ["draft"])
+    }
+
     func testUnknownVersionAndInvalidDatesAreRejected() {
         XCTAssertThrowsError(try WeeklyPlanJSON.decode(Data(#"{"schemaVersion":2}"#.utf8)))
         XCTAssertFalse(WeeklyPlan.isValidDay("2026-02-29"))
