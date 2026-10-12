@@ -91,6 +91,25 @@ final class WeeklyPlanStoreTests: XCTestCase {
         XCTAssertEqual(preview.mergedPlan.tasks.map(\.id), ["parent", "fresh"])
     }
 
+    func testFirstImportAcceptsProposedClassificationButRefreshRetainsLocalChoice() throws {
+        var incomingTask = task(id: "fresh", title: "Fresh work", estimate: 1_800)
+        incomingTask.sourceID = "source:fresh"
+        var incoming = WeeklyPlan(id: "new-week", sourceID: "source:new-week", tasks: [incomingTask])
+        incoming.localState.classifications = ["fresh": TaskClassification(
+            quadrant: .urgentImportant, workKind: .writing,
+            planningState: .conditionalTask, isConditionReady: false
+        )]
+
+        let first = try WeeklyPlan(id: "local", tasks: []).previewingExternalImport(incoming).mergedPlan
+        XCTAssertEqual(first.localState.classifications["fresh"]?.planningState, .conditionalTask)
+        XCTAssertTrue(first.taskQueue(at: date(100)).selectableTasks.isEmpty)
+
+        var local = first
+        try local.setClassification(TaskClassification.default, for: "fresh")
+        let refresh = try local.previewingExternalImport(incoming).mergedPlan
+        XCTAssertEqual(refresh.localState.classifications["fresh"], .default)
+    }
+
     func testReviewedRefreshKeepsQueueAndActualWorkWhileShowingBothEstimates() throws {
         var current = localPlan()
         current.sourceID = "source:week"
