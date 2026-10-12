@@ -1154,6 +1154,34 @@ final class FocusTimerViewModelTests: XCTestCase {
 
     // MARK: - Task work segments
 
+    func testQuickUrgentTaskCreditsBothTasksAndResumesWithoutResettingFocus() throws {
+        let start = Date(timeIntervalSince1970: 19_000)
+        var currentDate = start
+        let planStore = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(120)
+        XCTAssertTrue(viewModel.quickAddUrgentTask(title: "Reply to student", estimateSeconds: 10 * 60))
+        XCTAssertEqual(viewModel.remainingTime, 480)
+        XCTAssertEqual(viewModel.currentTask?.title, "Reply to student")
+        XCTAssertEqual(viewModel.interruptedTaskTitle, "Grading")
+
+        currentDate = start.addingTimeInterval(180)
+        XCTAssertTrue(viewModel.resumeInterruptedTask())
+        XCTAssertEqual(viewModel.remainingTime, 420)
+        XCTAssertEqual(viewModel.currentTask?.title, "Grading")
+
+        currentDate = start.addingTimeInterval(600)
+        viewModel.refreshForClockTick()
+
+        let plan = try XCTUnwrap(planStore.load())
+        let urgent = try XCTUnwrap(plan.tasks.first { $0.title == "Reply to student" })
+        XCTAssertEqual(plan.actualWorkSeconds(for: "grading"), 540)
+        XCTAssertEqual(plan.actualWorkSeconds(for: urgent.id), 60)
+        XCTAssertTrue(plan.localState.interruptedTaskIDs.isEmpty)
+        XCTAssertEqual(viewModel.phase, .shortBreak)
+    }
+
     func testTaskSwitchesSplitOneFocusIntervalWithoutChangingItsEnd() throws {
         let start = Date(timeIntervalSince1970: 20_000)
         var currentDate = start

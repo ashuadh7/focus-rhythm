@@ -40,6 +40,38 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(plan.tasks.first { $0.id == zero }).needsEstimateRevision)
     }
 
+    func testUrgentTaskPreservesAndResumesInterruptedTaskAcrossRoundTrip() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [
+            makeTask(id: "grading", title: "Grading", estimate: 3_600),
+            makeTask(id: "email", title: "Urgent email", estimate: nil)
+        ], localState: PlanLocalState(selectedTaskID: "grading"))
+
+        try plan.beginUrgentTask("email")
+
+        XCTAssertEqual(plan.localState.selectedTaskID, "email")
+        XCTAssertEqual(plan.localState.interruptedTaskIDs, ["grading"])
+        XCTAssertEqual(try WeeklyPlanJSON.decode(WeeklyPlanJSON.encode(plan)), plan)
+
+        XCTAssertEqual(try plan.resumeInterruptedTask(), "grading")
+        XCTAssertEqual(plan.localState.selectedTaskID, "grading")
+        XCTAssertTrue(plan.localState.interruptedTaskIDs.isEmpty)
+    }
+
+    func testNestedUrgentTasksResumeInReverseOrder() throws {
+        var plan = WeeklyPlan(id: "local-tasks", tasks: [
+            makeTask(id: "grading", title: "Grading", estimate: 3_600),
+            makeTask(id: "email", title: "Email", estimate: nil),
+            makeTask(id: "call", title: "Call", estimate: nil)
+        ], localState: PlanLocalState(selectedTaskID: "grading"))
+
+        try plan.beginUrgentTask("email")
+        try plan.beginUrgentTask("call")
+
+        XCTAssertEqual(plan.localState.interruptedTaskIDs, ["grading", "email"])
+        XCTAssertEqual(try plan.resumeInterruptedTask(), "email")
+        XCTAssertEqual(try plan.resumeInterruptedTask(), "grading")
+    }
+
     func testEditAndAbandonLocalTaskPreserveHistoryButRemoveItFromQueue() throws {
         var plan = WeeklyPlan(id: "local-tasks", tasks: [])
         let id = try plan.addLocalTask(title: "Old title", estimateSeconds: nil)

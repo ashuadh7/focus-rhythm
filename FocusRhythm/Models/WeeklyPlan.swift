@@ -144,6 +144,26 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         self = copy
     }
 
+    mutating func beginUrgentTask(_ taskID: String) throws {
+        var copy = self
+        let interrupted = copy.localState.selectedTaskID
+        try copy.selectTask(taskID)
+        if let interrupted, interrupted != taskID {
+            copy.localState.interruptedTaskIDs.removeAll { $0 == interrupted }
+            copy.localState.interruptedTaskIDs.append(interrupted)
+        }
+        self = copy
+    }
+
+    @discardableResult
+    mutating func resumeInterruptedTask() throws -> String? {
+        var copy = self
+        guard let taskID = copy.localState.interruptedTaskIDs.popLast() else { return nil }
+        try copy.selectTask(taskID)
+        self = copy
+        return taskID
+    }
+
     /// Changes the working expectation without changing the durable record of
     /// focus already credited to the task. `nil` is an intentional, visible
     /// "time unknown" decision rather than a zero-minute estimate.
@@ -688,23 +708,29 @@ struct PlanLocalState: Codable, Equatable {
     var selectedTaskID: String? = nil
     var estimateAdjustments: [TaskEstimateAdjustment] = []
     var workSegments: [TaskWorkSegment] = []
+    /// A stack of tasks displaced by an explicit urgent "do now" choice. This is
+    /// durable so an interruption can be resumed after a relaunch rather than
+    /// becoming an anonymous queue item.
+    var interruptedTaskIDs: [String] = []
     /// Unfinished work retained from an earlier source batch. It remains durable
     /// and visible for review, but is not injected into a new week's queue.
     var carryoverTaskIDs: [String] = []
 
     init(taskOrder: [String]? = nil, deferrals: [TaskDeferral] = [],
          selectedTaskID: String? = nil, estimateAdjustments: [TaskEstimateAdjustment] = [],
-         workSegments: [TaskWorkSegment] = [], carryoverTaskIDs: [String] = []) {
+         workSegments: [TaskWorkSegment] = [], interruptedTaskIDs: [String] = [],
+         carryoverTaskIDs: [String] = []) {
         self.taskOrder = taskOrder
         self.deferrals = deferrals
         self.selectedTaskID = selectedTaskID
         self.estimateAdjustments = estimateAdjustments
         self.workSegments = workSegments
+        self.interruptedTaskIDs = interruptedTaskIDs
         self.carryoverTaskIDs = carryoverTaskIDs
     }
 
     private enum CodingKeys: String, CodingKey {
-        case taskOrder, deferrals, selectedTaskID, estimateAdjustments, workSegments, carryoverTaskIDs
+        case taskOrder, deferrals, selectedTaskID, estimateAdjustments, workSegments, interruptedTaskIDs, carryoverTaskIDs
     }
 
     init(from decoder: Decoder) throws {
@@ -714,6 +740,7 @@ struct PlanLocalState: Codable, Equatable {
         selectedTaskID = try values.decodeIfPresent(String.self, forKey: .selectedTaskID)
         estimateAdjustments = try values.decodeIfPresent([TaskEstimateAdjustment].self, forKey: .estimateAdjustments) ?? []
         workSegments = try values.decodeIfPresent([TaskWorkSegment].self, forKey: .workSegments) ?? []
+        interruptedTaskIDs = try values.decodeIfPresent([String].self, forKey: .interruptedTaskIDs) ?? []
         carryoverTaskIDs = try values.decodeIfPresent([String].self, forKey: .carryoverTaskIDs) ?? []
     }
 }
