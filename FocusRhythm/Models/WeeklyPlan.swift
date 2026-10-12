@@ -106,6 +106,10 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         self = copy
     }
 
+    /// Complete ordering is exposed for queue controls so moving one eligible
+    /// task never accidentally drops completed, deferred, or carryover records.
+    var taskOrderIDs: [String] { normalizedTaskOrder() }
+
     mutating func deferTask(_ taskID: String, at date: Date, for duration: TimeInterval = 30 * 60) throws {
         guard duration.isFinite, duration > 0 else {
             throw PlanValidationError(path: "localState.deferrals", message: "Deferral duration must be positive.")
@@ -136,6 +140,23 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         var copy = self
         copy.localState.selectedTaskID = taskID
         copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        try copy.validate()
+        self = copy
+    }
+
+    /// Changes the working expectation without changing the durable record of
+    /// focus already credited to the task. `nil` is an intentional, visible
+    /// "time unknown" decision rather than a zero-minute estimate.
+    mutating func setRemainingEstimate(_ taskID: String, to seconds: TimeInterval?) throws {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }),
+              tasks[index].completedAt == nil, tasks[index].abandonedAt == nil else {
+            throw PlanValidationError(path: "tasks.estimate", message: "Only unfinished tasks can have their remaining effort revised.")
+        }
+        guard seconds.map({ $0.isFinite && $0 >= 0 }) ?? true else {
+            throw PlanValidationError(path: "tasks.estimate", message: "Remaining effort must be finite and nonnegative.")
+        }
+        var copy = self
+        copy.tasks[index].remainingEstimateSeconds = seconds
         try copy.validate()
         self = copy
     }
