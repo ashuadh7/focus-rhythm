@@ -151,6 +151,33 @@ struct PlanTimeRange: Codable, Equatable {
     var duration: TimeInterval { end.timeIntervalSince(start) }
 }
 
+/// A transparent, non-mutating answer to “what can fit?”  Forecasting consumes
+/// only real focus capacity; it never turns a preference or estimate into an anchor.
+struct TaskForecast: Equatable {
+    struct Placement: Equatable, Identifiable {
+        let id: String
+        let taskID: String
+        let day: String
+        let effortSeconds: TimeInterval
+    }
+
+    enum Conflict: Equatable {
+        case insufficientKnownCapacity(shortfallSeconds: TimeInterval)
+        case deadlineAtRisk(taskID: String)
+        case prerequisiteIncomplete(taskID: String)
+        case missingFutureAvailability
+    }
+
+    var placements: [Placement]
+    var unplacedTaskIDs: [String]
+    var unknownEffortTaskIDs: [String]
+    var conflicts: [Conflict]
+    var knownCapacitySeconds: TimeInterval
+    var knownDemandSeconds: TimeInterval
+
+    var knownShortfallSeconds: TimeInterval { max(0, knownDemandSeconds - knownCapacitySeconds) }
+}
+
 struct DailyAvailability: Codable, Equatable {
     var day: String
     var windows: [PlanTimeRange]
@@ -180,6 +207,71 @@ struct PlannedTask: Codable, Equatable, Identifiable {
 
     var needsEstimateRevision: Bool { completedAt == nil && remainingEstimateSeconds == 0 }
     var hasUnknownEstimate: Bool { originalEstimateSeconds == nil && remainingEstimateSeconds == nil }
+}
+
+extension WeeklyPlan {
+    /// Forecasts unfinished task effort against supplied real focus capacity keyed by
+    /// planning day. Tasks remain eligible when capacity is unknown; the result says
+    /// so rather than assuming zero capacity or a zero estimate.
+    func forecast(capacityByDay: [String: TimeInterval]) -> TaskForecast {
+        let ordered = tasks.filter { $0.completedAt == nil }.sorted {
+            let left = $0.order ?? Int.max
+            let right = $1.order ?? Int.max
+            return left == right ? $0.id < $1.id : left < right
+        }
+        var capacity = capacityByDay.mapValues { max(0, $0) }
+        var placements: [TaskForecast.Placement] = []
+        var unplaced: [String] = []
+        var unknown: [String] = []
+        var conflicts: [TaskForecast.Conflict] = []
+        let completed = Set(tasks.filter { $0.completedAt != nil }.map(\.id))
+
+        for task in ordered {
+            guard task.prerequisiteTaskIDs.allSatisfy(completed.contains) else {
+                conflicts.append(.prerequisiteIncomplete(taskID: task.id))
+                unplaced.append(task.id)
+                continue
+            }
+            guard var remaining = task.remainingEstimateSeconds else {
+                unknown.append(task.id)
+                continue
+            }
+            let candidateDays = capacity.keys.sorted { left, right in
+                if let deadline = task.deadline {
+                    return left < right
+                }
+                let leftPreferred = allocations.contains { $0.taskID == task.id && $0.preferredDay == left }
+                let rightPreferred = allocations.contains { $0.taskID == task.id && $0.preferredDay == right }
+                return leftPreferred == rightPreferred ? left < right : leftPreferred
+            }
+            for day in candidateDays where remaining > 0 {
+                if let deadline = task.deadline, let dayEnd = Self.forecastDayEnd(day, timeZoneIdentifier: timeZoneIdentifier), dayEnd > deadline { continue }
+                let used = min(remaining, capacity[day] ?? 0)
+                guard used > 0 else { continue }
+                placements.append(.init(id: "\(task.id):\(day)", taskID: task.id, day: day, effortSeconds: used))
+                capacity[day, default: 0] -= used
+                remaining -= used
+            }
+            if remaining > 0 {
+                unplaced.append(task.id)
+                if task.deadline != nil { conflicts.append(.deadlineAtRisk(taskID: task.id)) }
+            }
+        }
+        let knownDemand = ordered.compactMap(\.remainingEstimateSeconds).reduce(0, +)
+        let knownCapacity = capacityByDay.values.reduce(0) { $0 + max(0, $1) }
+        if knownDemand > knownCapacity { conflicts.append(.insufficientKnownCapacity(shortfallSeconds: knownDemand - knownCapacity)) }
+        if availability == nil { conflicts.append(.missingFutureAvailability) }
+        return TaskForecast(placements: placements, unplacedTaskIDs: unplaced, unknownEffortTaskIDs: unknown,
+                            conflicts: conflicts, knownCapacitySeconds: knownCapacity, knownDemandSeconds: knownDemand)
+    }
+
+    private static func forecastDayEnd(_ day: String, timeZoneIdentifier: String?) -> Date? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZoneIdentifier.flatMap(TimeZone.init(identifier:)) ?? .current
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, let start = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else { return nil }
+        return calendar.dateInterval(of: .day, for: start)?.end
+    }
 }
 
 struct PlannedAllocation: Codable, Equatable, Identifiable {

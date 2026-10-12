@@ -220,6 +220,15 @@ The automated tests also cover an example meeting, suggested work times, task or
 postponing a task, and recorded focus time. Those details matter to the data model, but
 they are not needed to decide whether the child-task behavior above makes sense.
 
+## Forecasting capacity (#41)
+
+With the local task fixture, check the forecast explanation rather than expecting the
+app to force work into the day: known effort uses only generated focus capacity, a
+child using its parent's estimate leaves the combined total unchanged, and added work
+increases the total. Unknown-effort work remains visible as uncertain. A deadline or
+prerequisite conflict should remain explicit, with unplaced work shown as carryover
+rather than silently completed or assigned through a fixed commitment.
+
 ## Planned v0.3 verification coverage
 
 These are acceptance targets for features not implemented yet. Each implementation

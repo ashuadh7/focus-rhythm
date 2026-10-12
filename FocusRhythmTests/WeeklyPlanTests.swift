@@ -122,6 +122,35 @@ final class WeeklyPlanTests: XCTestCase {
         assertInvalid(WeeklyPlan(id: "local", tasks: [makeTask(id: "task", title: "Task", estimate: nil)], allocations: [allocation]), path: "allocations")
     }
 
+    func testForecastPlacesKnownWorkOnceAndReportsUnknownAndOverflow() throws {
+        var parent = makeTask(id: "parent", title: "Parent", estimate: 9_000)
+        parent.order = 0
+        var child = makeTask(id: "child", title: "Child", estimate: 3_600)
+        child.order = 1
+        var unknown = makeTask(id: "unknown", title: "Unknown", estimate: nil)
+        unknown.order = 2
+        var plan = WeeklyPlan(id: "local", tasks: [parent, unknown])
+        try plan.addChild(child, to: "parent", accounting: .usesParentEstimate, recordedAt: now)
+
+        let forecast = plan.forecast(capacityByDay: ["2026-10-12": 7_200])
+
+        XCTAssertEqual(forecast.knownDemandSeconds, 9_000)
+        XCTAssertEqual(forecast.knownShortfallSeconds, 1_800)
+        XCTAssertEqual(forecast.placements.reduce(0) { $0 + $1.effortSeconds }, 7_200)
+        XCTAssertEqual(forecast.unknownEffortTaskIDs, ["unknown"])
+        XCTAssertTrue(forecast.conflicts.contains(.insufficientKnownCapacity(shortfallSeconds: 1_800)))
+    }
+
+    func testForecastKeepsBlockedPrerequisiteUnplaced() {
+        var task = makeTask(id: "dependent", title: "Dependent", estimate: 3_600)
+        task.prerequisiteTaskIDs = ["first"]
+        let first = makeTask(id: "first", title: "First", estimate: 3_600)
+        let forecast = WeeklyPlan(id: "local", tasks: [first, task]).forecast(capacityByDay: ["2026-10-12": 14_400])
+
+        XCTAssertTrue(forecast.unplacedTaskIDs.contains("dependent"))
+        XCTAssertTrue(forecast.conflicts.contains(.prerequisiteIncomplete(taskID: "dependent")))
+    }
+
     func testUnknownVersionAndInvalidDatesAreRejected() {
         XCTAssertThrowsError(try WeeklyPlanJSON.decode(Data(#"{"schemaVersion":2}"#.utf8)))
         XCTAssertFalse(WeeklyPlan.isValidDay("2026-02-29"))
