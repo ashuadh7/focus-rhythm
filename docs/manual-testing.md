@@ -72,6 +72,25 @@ and one without one, then use **Start test**.
    not credited to either task. Quit and reopen before a later block completes, then
    confirm previously recorded task work is present exactly once.
 
+## Child-task breakdown (#68)
+
+On **Choose today’s rhythm**, add a parent task with **150 minutes** remaining. Add a
+one-hour child and select that parent in **Break down work**.
+
+1. Choose **Use existing estimate**. Confirm the parent now shows 90 minutes remaining
+   and the combined known total is still 150 minutes. Edit the child to 90 minutes and
+   confirm the parent drops to 60 minutes instead of increasing total work.
+2. Change that child to **Add to estimate**. Confirm the parent returns to 150 minutes
+   and the child adds 90 minutes of newly discovered work. Relaunch and confirm the
+   child, its parent breadcrumb, and its accounting choice remain intact.
+3. Create a child under a no-estimate parent. Confirm the app explains that total work
+   remains unknown and does not invent an estimate. Add a grandchild, then edit its
+   parent picker; its own descendant must not be offered as a possible parent.
+4. Start a test focus block, select a child, and work briefly. Confirm the child gains
+   actual focused time and its parent still shows a roll-up only where displayed—global
+   focused time must not double. Mark a parent with unfinished children done or abandon
+   it; confirm the action explicitly says it includes the children.
+
 ## Current task in focus (#48)
 
 Use a task catalog containing a root task, a child task with a project/context and

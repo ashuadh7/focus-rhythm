@@ -154,6 +154,51 @@ final class WeeklyPlanTests: XCTestCase {
         try WeeklyPlan(id: "local", tasks: [parent, child], localState: state).validate()
     }
 
+    func testEditingChildEstimateAndAccountingReallocatesKnownWorkAtomically() throws {
+        var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "parent", title: "Parent", estimate: 3_600)])
+        let childID = try plan.addLocalTask(title: "Child", estimateSeconds: 600, parentID: "parent", accounting: .usesParentEstimate, recordedAt: now)
+
+        try plan.editLocalTask(childID, title: "Child", estimateSeconds: 900, deadline: nil,
+                               project: nil, context: nil, categoryTags: [], parentID: "parent",
+                               accounting: .usesParentEstimate, recordedAt: now)
+        XCTAssertEqual(task("parent", in: plan).remainingEstimateSeconds, 2_700)
+        XCTAssertEqual(plan.remainingEffortSeconds, 3_600)
+
+        try plan.editLocalTask(childID, title: "Child", estimateSeconds: 900, deadline: nil,
+                               project: nil, context: nil, categoryTags: [], parentID: "parent",
+                               accounting: .addsToParentEstimate, recordedAt: now)
+        XCTAssertEqual(task("parent", in: plan).remainingEstimateSeconds, 3_600)
+        XCTAssertEqual(plan.remainingEffortSeconds, 4_500)
+        XCTAssertEqual(plan.localState.estimateAdjustments.count, 3)
+        XCTAssertEqual(plan.localState.estimateAdjustments.last?.accounting, .addsToParentEstimate)
+    }
+
+    func testEditingChildRejectsCycleWithoutMutatingPlan() throws {
+        var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "parent", title: "Parent", estimate: 3_600)])
+        let childID = try plan.addLocalTask(title: "Child", estimateSeconds: 600, parentID: "parent", accounting: .usesParentEstimate, recordedAt: now)
+        let original = plan
+
+        XCTAssertThrowsError(try plan.editLocalTask("parent", title: "Parent", estimateSeconds: 3_000, deadline: nil,
+                                                     project: nil, context: nil, categoryTags: [], parentID: childID,
+                                                     accounting: .usesParentEstimate, recordedAt: now))
+        XCTAssertEqual(plan, original)
+    }
+
+    func testParentCompletionAndAbandonmentRequireAnExplicitDescendantDecision() throws {
+        var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "parent", title: "Parent", estimate: 3_600)])
+        _ = try plan.addLocalTask(title: "Child", estimateSeconds: 600, parentID: "parent", accounting: .usesParentEstimate, recordedAt: now)
+
+        XCTAssertThrowsError(try plan.markTaskCompleted("parent", at: now))
+        try plan.markTaskCompleted("parent", at: now, descendantDisposition: .completeDescendants)
+        XCTAssertTrue(plan.tasks.allSatisfy { $0.completedAt == now })
+
+        var another = WeeklyPlan(id: "another", tasks: [makeTask(id: "parent", title: "Parent", estimate: 3_600)])
+        _ = try another.addLocalTask(title: "Child", estimateSeconds: 600, parentID: "parent", accounting: .usesParentEstimate, recordedAt: now)
+        XCTAssertThrowsError(try another.abandonLocalTask("parent", at: now))
+        try another.abandonLocalTask("parent", at: now, descendantDisposition: .abandonDescendants)
+        XCTAssertTrue(another.tasks.allSatisfy { $0.abandonedAt == now })
+    }
+
     func testImportedFixtureStillRoundTripsAndCoexistsWithLocalTask() throws {
         var plan = try fixture()
         plan.tasks.append(makeTask(id: "local-follow-up", title: "Local follow-up", estimate: nil))

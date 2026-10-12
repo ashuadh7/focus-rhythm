@@ -237,13 +237,15 @@ final class RhythmSetupViewModel {
     @discardableResult
     func createLocalTask(
         title: String, estimateSeconds: TimeInterval?, deadline: Date? = nil,
-        project: String? = nil, context: String? = nil, categoryTags: [String] = []
+        project: String? = nil, context: String? = nil, categoryTags: [String] = [],
+        parentID: String? = nil, accounting: ChildEstimateAccounting? = nil
     ) -> Bool {
         do {
             var plan = planStore.load() ?? WeeklyPlan(id: UUID().uuidString, tasks: [])
             _ = try plan.addLocalTask(
                 title: title, estimateSeconds: estimateSeconds, deadline: deadline,
-                project: project, context: context, categoryTags: categoryTags, recordedAt: now()
+                project: project, context: context, categoryTags: categoryTags,
+                parentID: parentID, accounting: accounting, recordedAt: now()
             )
             try planStore.save(plan)
             taskQueueMessage = nil
@@ -259,15 +261,37 @@ final class RhythmSetupViewModel {
         updateTaskQueue { plan in try plan.abandonLocalTask(taskID, at: now()) }
     }
 
+    func abandonLocalTaskAndDescendants(_ taskID: String) {
+        updateTaskQueue { plan in
+            try plan.abandonLocalTask(taskID, at: now(), descendantDisposition: .abandonDescendants)
+        }
+    }
+
+    func completeQueuedTask(_ taskID: String, includingDescendants: Bool = false) {
+        updateTaskQueue { plan in
+            try plan.markTaskCompleted(taskID, at: now(), descendantDisposition: includingDescendants ? .completeDescendants : nil)
+        }
+    }
+
+    func hasActiveDescendants(_ task: PlannedTask) -> Bool {
+        guard let plan = planStore.load() else { return false }
+        return plan.descendantIDs(of: task.id).contains { id in
+            guard let descendant = plan.tasks.first(where: { $0.id == id }) else { return false }
+            return descendant.completedAt == nil && descendant.abandonedAt == nil
+        }
+    }
+
     @discardableResult
     func editLocalTask(
         _ taskID: String, title: String, estimateSeconds: TimeInterval?, deadline: Date?,
-        project: String?, context: String?, categoryTags: [String]
+        project: String?, context: String?, categoryTags: [String],
+        parentID: String?, accounting: ChildEstimateAccounting?
     ) -> Bool {
         do {
             guard var plan = planStore.load() else { return false }
             try plan.editLocalTask(taskID, title: title, estimateSeconds: estimateSeconds, deadline: deadline,
-                                   project: project, context: context, categoryTags: categoryTags)
+                                   project: project, context: context, categoryTags: categoryTags,
+                                   parentID: parentID, accounting: accounting, recordedAt: now())
             try planStore.save(plan)
             taskQueueMessage = nil
             refreshTaskQueue()
@@ -276,6 +300,14 @@ final class RhythmSetupViewModel {
             taskQueueMessage = error.localizedDescription
             return false
         }
+    }
+
+    /// A compact, ancestry-aware list for the child editor.  The editor excludes a
+    /// task and its descendants so the model never has to recover from a cycle.
+    func possibleParents(for taskID: String? = nil) -> [PlannedTask] {
+        guard let plan = planStore.load() else { return [] }
+        let excluded: Set<String> = taskID.map { plan.descendantIDs(of: $0).union([$0]) } ?? []
+        return plan.tasks.filter { !excluded.contains($0.id) && $0.abandonedAt == nil }
     }
 
     func selectQueuedTask(_ taskID: String) {
