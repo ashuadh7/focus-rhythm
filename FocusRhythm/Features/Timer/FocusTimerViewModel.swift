@@ -64,6 +64,7 @@ final class FocusTimerViewModel {
     private let activeRunStore: ActiveRunStoring?
     private let stoppedRunStore: StoppedRunStoring?
     private let runHistoryStore: RunHistoryStoring?
+    private let planStore: WeeklyPlanStoring?
     private var schedule: GeneratedDailySchedule? { activeRun?.schedule }
     private var runtimeDate: Date
     private var currentIntervalIndex: Int?
@@ -75,6 +76,7 @@ final class FocusTimerViewModel {
         settingsStore: TimerSettingsStoring = UserDefaultsTimerSettingsStore(),
         sessionStore: FocusSessionStoring = UserDefaultsFocusSessionStore(),
         notificationScheduler: NotificationScheduling = UNUserNotificationScheduler(),
+        planStore: WeeklyPlanStoring? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         let resolvedWorkDuration = workDuration ?? settingsStore.loadWorkDuration() ?? Self.defaultWorkDuration
@@ -88,6 +90,7 @@ final class FocusTimerViewModel {
         self.activeRunStore = nil
         self.stoppedRunStore = nil
         self.runHistoryStore = nil
+        self.planStore = planStore
         self.runtimeDate = now()
         self.phase = phase
         self.workDuration = resolvedWorkDuration
@@ -103,6 +106,7 @@ final class FocusTimerViewModel {
         activeRunStore: ActiveRunStoring = UserDefaultsActiveRunStore(),
         stoppedRunStore: StoppedRunStoring = UserDefaultsStoppedRunStore(),
         runHistoryStore: RunHistoryStoring = UserDefaultsRunHistoryStore(),
+        planStore: WeeklyPlanStoring = UserDefaultsWeeklyPlanStore(),
         now: @escaping () -> Date = Date.init
     ) {
         self.settingsStore = UserDefaultsTimerSettingsStore()
@@ -113,6 +117,7 @@ final class FocusTimerViewModel {
         self.activeRunStore = activeRunStore
         self.stoppedRunStore = stoppedRunStore
         self.runHistoryStore = runHistoryStore
+        self.planStore = planStore
         self.runtimeDate = now()
         self.phase = .idle
         self.workDuration = run.rhythm.workDuration
@@ -444,6 +449,42 @@ final class FocusTimerViewModel {
         }
     }
 
+    /// Changes the task receiving credit without changing the timer. Any elapsed
+    /// focus is closed against the previously selected task first, which makes a
+    /// focus interval safely splittable across tasks.
+    @discardableResult
+    func selectTask(_ taskID: String) -> Bool {
+        guard let planStore else { return false }
+        closeCurrentTaskSegment(at: now())
+        do {
+            guard var plan = planStore.load() else { return false }
+            try plan.selectTask(taskID)
+            try planStore.save(plan)
+            return true
+        } catch {
+            assertionFailure("Unable to select task: \(error)")
+            return false
+        }
+    }
+
+    /// Explicitly marks the active task done while leaving the focus countdown
+    /// untouched. The rest of the current interval can then be assigned elsewhere.
+    @discardableResult
+    func completeSelectedTask() -> Bool {
+        guard let planStore, let selectedTaskID = planStore.load()?.localState.selectedTaskID else { return false }
+        let completedAt = now()
+        closeCurrentTaskSegment(at: completedAt)
+        do {
+            guard var plan = planStore.load() else { return false }
+            try plan.markTaskCompleted(selectedTaskID, at: completedAt)
+            try planStore.save(plan)
+            return true
+        } catch {
+            assertionFailure("Unable to complete task: \(error)")
+            return false
+        }
+    }
+
     // MARK: - End cycle
 
     static func wordCount(_ text: String) -> Int {
@@ -631,6 +672,7 @@ final class FocusTimerViewModel {
             )
         }
         activeRun?.recordedIntervalIDs.insert(interval.id)
+        recordTaskWork(for: interval, through: interval.endDate)
     }
 
     private func recordInterruptedScheduledWorkSession() {
@@ -652,6 +694,59 @@ final class FocusTimerViewModel {
             duration: elapsed,
             completed: false
         )
+        recordTaskWork(for: interval, through: endedAt)
+    }
+
+    private func closeCurrentTaskSegment(at date: Date) {
+        guard let schedule, let currentIntervalIndex, schedule.intervals.indices.contains(currentIntervalIndex) else { return }
+        let interval = schedule.intervals[currentIntervalIndex]
+        guard interval.kind == .focus else { return }
+        recordTaskWork(for: interval, through: min(date, interval.endDate))
+    }
+
+    /// Adds only focus time not already closed into a durable segment. This makes
+    /// foreground refresh/relaunch idempotent and preserves unattributed focus when
+    /// no task has been selected.
+    private func recordTaskWork(for interval: ScheduledInterval, through end: Date) {
+        guard let activeRun, let planStore, var plan = planStore.load() else { return }
+        let priorEnd = plan.localState.workSegments
+            .filter { $0.runID == activeRun.id && $0.focusIntervalID == interval.id }
+            .map { $0.time.end }
+            .max() ?? interval.startDate
+        guard priorEnd < end else { return }
+        do {
+            let taskID = plan.localState.selectedTaskID
+            for range in creditableRanges(in: interval, from: priorEnd, through: end) where range.start < range.end {
+                let segment = try TaskWorkSegment(taskID: taskID, runID: activeRun.id, focusInterval: interval, start: range.start, end: range.end)
+                plan.localState.workSegments.append(segment)
+                if let taskID, let index = plan.tasks.firstIndex(where: { $0.id == taskID }), let remaining = plan.tasks[index].remainingEstimateSeconds {
+                    plan.tasks[index].remainingEstimateSeconds = max(0, remaining - segment.duration)
+                }
+            }
+            try plan.validateWorkSegments(in: activeRun.schedule, runID: activeRun.id)
+            try planStore.save(plan)
+        } catch {
+            assertionFailure("Unable to record task work: \(error)")
+        }
+    }
+
+    private func creditableRanges(in interval: ScheduledInterval, from start: Date, through end: Date) -> [PlanTimeRange] {
+        guard let activeRun else { return [] }
+        let exclusions = activeRun.adjustments
+            .filter { $0.kind == .midWorkBreak }
+            .map { PlanTimeRange(start: $0.date, end: $0.date.addingTimeInterval($0.duration)) }
+            .filter { $0.end > start && $0.start < end }
+            .sorted { $0.start < $1.start }
+        var cursor = max(start, interval.startDate)
+        let cappedEnd = min(end, interval.endDate)
+        var ranges: [PlanTimeRange] = []
+        for exclusion in exclusions {
+            let exclusionStart = max(cursor, exclusion.start)
+            if cursor < exclusionStart { ranges.append(PlanTimeRange(start: cursor, end: exclusionStart)) }
+            cursor = max(cursor, exclusion.end)
+        }
+        if cursor < cappedEnd { ranges.append(PlanTimeRange(start: cursor, end: cappedEnd)) }
+        return ranges
     }
 
     private func updateActiveRunStatus(_ status: ActiveRhythmRun.Status) {
@@ -724,6 +819,7 @@ final class FocusTimerViewModel {
 
     private func beginScheduledQuickBreak(duration: TimeInterval) {
         let startedAt = now()
+        closeCurrentTaskSegment(at: startedAt)
         let blockLabel = currentBlockName ?? "Focus"
         let appliedDuration = reflowRemainingSchedule(
             by: duration,

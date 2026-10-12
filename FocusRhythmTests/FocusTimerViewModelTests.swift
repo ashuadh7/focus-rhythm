@@ -1152,6 +1152,121 @@ final class FocusTimerViewModelTests: XCTestCase {
         currentDate = start
     }
 
+    // MARK: - Task work segments
+
+    func testTaskSwitchesSplitOneFocusIntervalWithoutChangingItsEnd() throws {
+        let start = Date(timeIntervalSince1970: 20_000)
+        var currentDate = start
+        let planStore = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let run = makeRun(start: start)
+        let viewModel = FocusTimerViewModel(run: run, sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(120)
+        XCTAssertTrue(viewModel.selectTask("email"))
+        currentDate = start.addingTimeInterval(180)
+        XCTAssertTrue(viewModel.selectTask("grading"))
+        currentDate = start.addingTimeInterval(600)
+        viewModel.refreshForClockTick()
+
+        let plan = try XCTUnwrap(planStore.load())
+        XCTAssertEqual(plan.actualWorkSeconds(for: "grading"), 540)
+        XCTAssertEqual(plan.actualWorkSeconds(for: "email"), 60)
+        XCTAssertEqual(plan.localState.workSegments.map(\.duration).reduce(0, +), 600)
+        XCTAssertEqual(viewModel.phase, .shortBreak)
+    }
+
+    func testKnownEstimateIsDeductedButNeverCompletesAutomatically() throws {
+        let start = Date(timeIntervalSince1970: 21_000)
+        var currentDate = start
+        var plan = taskPlan(selected: "grading")
+        plan.tasks[0].originalEstimateSeconds = 120
+        plan.tasks[0].remainingEstimateSeconds = 120
+        let planStore = InMemoryWeeklyPlanStore(plan: plan)
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(600)
+        viewModel.refreshForClockTick()
+
+        let grading = try XCTUnwrap(planStore.load()?.tasks.first { $0.id == "grading" })
+        XCTAssertEqual(grading.remainingEstimateSeconds, 0)
+        XCTAssertNil(grading.completedAt)
+    }
+
+    func testUnknownEstimateAccumulatesActualWorkWithoutCreatingEstimate() throws {
+        let start = Date(timeIntervalSince1970: 22_000)
+        var currentDate = start
+        let planStore = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "email"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(600)
+        viewModel.refreshForClockTick()
+
+        let stored = try XCTUnwrap(planStore.load())
+        XCTAssertNil(stored.tasks.first { $0.id == "email" }?.remainingEstimateSeconds)
+        XCTAssertEqual(stored.actualWorkSeconds(for: "email"), 600)
+    }
+
+    func testExplicitCompletionClosesCurrentTaskAndLeavesTimerRunning() throws {
+        let start = Date(timeIntervalSince1970: 23_000)
+        var currentDate = start
+        let planStore = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(120)
+        XCTAssertTrue(viewModel.completeSelectedTask())
+        XCTAssertEqual(viewModel.remainingTime, 480)
+        XCTAssertTrue(viewModel.selectTask("email"))
+        currentDate = start.addingTimeInterval(600)
+        viewModel.refreshForClockTick()
+
+        let stored = try XCTUnwrap(planStore.load())
+        XCTAssertNotNil(stored.tasks.first { $0.id == "grading" }?.completedAt)
+        XCTAssertEqual(stored.actualWorkSeconds(for: "grading"), 120)
+        XCTAssertEqual(stored.actualWorkSeconds(for: "email"), 480)
+    }
+
+    func testRepeatedReconciliationDoesNotDuplicateTaskCredit() throws {
+        let start = Date(timeIntervalSince1970: 24_000)
+        var currentDate = start
+        let planStore = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(600)
+        viewModel.refreshForClockTick()
+        viewModel.refreshForClockTick()
+
+        let stored = try XCTUnwrap(planStore.load())
+        XCTAssertEqual(stored.localState.workSegments.count, 1)
+        XCTAssertEqual(stored.actualWorkSeconds(for: "grading"), 600)
+    }
+
+    func testMidFocusBreakIsNotCreditedToATask() throws {
+        let start = Date(timeIntervalSince1970: 25_000)
+        var currentDate = start
+        let planStore = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: planStore, now: { currentDate })
+
+        currentDate = start.addingTimeInterval(120)
+        viewModel.completeHoldToInterrupt()
+        viewModel.confirmBreak(duration: 60)
+        currentDate = start.addingTimeInterval(180)
+        viewModel.refreshForClockTick()
+        currentDate = start.addingTimeInterval(660)
+        viewModel.refreshForClockTick()
+
+        let segments = try XCTUnwrap(planStore.load()).localState.workSegments
+        let breakRange = PlanTimeRange(start: start.addingTimeInterval(120), end: start.addingTimeInterval(180))
+        XCTAssertFalse(segments.contains { $0.time.start < breakRange.end && breakRange.start < $0.time.end })
+        XCTAssertEqual(segments.map(\.duration).reduce(0, +), 600)
+    }
+
+    private func taskPlan(selected: String) -> WeeklyPlan {
+        WeeklyPlan(id: "tasks", tasks: [
+            PlannedTask(id: "grading", sourceID: nil, title: "Grading", originalEstimateSeconds: 1_200, remainingEstimateSeconds: 1_200, completedAt: nil, order: 0, deadline: nil, prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil, project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: []),
+            PlannedTask(id: "email", sourceID: nil, title: "Email", originalEstimateSeconds: nil, remainingEstimateSeconds: nil, completedAt: nil, order: 1, deadline: nil, prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil, project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: [])
+        ], localState: PlanLocalState(selectedTaskID: selected))
+    }
+
     private func makeRun(start: Date) -> ActiveRhythmRun {
         let schedule = GeneratedDailySchedule(
             rhythmName: "Test",
@@ -1176,4 +1291,12 @@ final class FocusTimerViewModelTests: XCTestCase {
         )
         return ActiveRhythmRun(variationID: nil, rhythm: rhythm, schedule: schedule, startedAt: start)
     }
+}
+
+private final class InMemoryWeeklyPlanStore: WeeklyPlanStoring {
+    private var plan: WeeklyPlan?
+    init(plan: WeeklyPlan?) { self.plan = plan }
+    func load() -> WeeklyPlan? { plan }
+    func save(_ plan: WeeklyPlan) throws { self.plan = plan }
+    func clear() { plan = nil }
 }
