@@ -66,9 +66,11 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
         let carryover = Set(localState.carryoverTaskIDs)
         let ordered = orderedTasks.filter { task in
+            let classification = localState.classifications[task.id] ?? .default
             guard task.completedAt == nil, task.abandonedAt == nil,
                   !task.needsEstimateRevision,
                   !carryover.contains(task.id),
+                  classification.isAvailableForFocus,
                   task.prerequisiteTaskIDs.allSatisfy(completed.contains)
             else { return false }
             guard let availableFocusSeconds, let minimum = task.minimumChunkSeconds else { return true }
@@ -102,6 +104,19 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         }
         var copy = self
         copy.localState.taskOrder = orderedIDs
+        try copy.validate()
+        self = copy
+    }
+
+    /// Classification is app-owned planning context. It is keyed by the stable
+    /// task identity so imported descriptions can refresh without replacing a
+    /// person's Eisenhower choice or conditional-work readiness.
+    mutating func setClassification(_ classification: TaskClassification, for taskID: String) throws {
+        guard tasks.contains(where: { $0.id == taskID }) else {
+            throw PlanValidationError(path: "localState.classifications", message: "Only known tasks can be classified.")
+        }
+        var copy = self
+        copy.localState.classifications[taskID] = classification
         try copy.validate()
         self = copy
     }
@@ -813,11 +828,14 @@ struct PlanLocalState: Codable, Equatable {
     /// Unfinished work retained from an earlier source batch. It remains durable
     /// and visible for review, but is not injected into a new week's queue.
     var carryoverTaskIDs: [String] = []
+    /// App-owned task planning decisions. These intentionally stay outside the
+    /// imported task payload so source refreshes preserve them.
+    var classifications: [String: TaskClassification] = [:]
 
     init(taskOrder: [String]? = nil, deferrals: [TaskDeferral] = [],
          selectedTaskID: String? = nil, estimateAdjustments: [TaskEstimateAdjustment] = [],
          workSegments: [TaskWorkSegment] = [], interruptedTaskIDs: [String] = [],
-         carryoverTaskIDs: [String] = []) {
+         carryoverTaskIDs: [String] = [], classifications: [String: TaskClassification] = [:]) {
         self.taskOrder = taskOrder
         self.deferrals = deferrals
         self.selectedTaskID = selectedTaskID
@@ -825,10 +843,11 @@ struct PlanLocalState: Codable, Equatable {
         self.workSegments = workSegments
         self.interruptedTaskIDs = interruptedTaskIDs
         self.carryoverTaskIDs = carryoverTaskIDs
+        self.classifications = classifications
     }
 
     private enum CodingKeys: String, CodingKey {
-        case taskOrder, deferrals, selectedTaskID, estimateAdjustments, workSegments, interruptedTaskIDs, carryoverTaskIDs
+        case taskOrder, deferrals, selectedTaskID, estimateAdjustments, workSegments, interruptedTaskIDs, carryoverTaskIDs, classifications
     }
 
     init(from decoder: Decoder) throws {
@@ -840,6 +859,72 @@ struct PlanLocalState: Codable, Equatable {
         workSegments = try values.decodeIfPresent([TaskWorkSegment].self, forKey: .workSegments) ?? []
         interruptedTaskIDs = try values.decodeIfPresent([String].self, forKey: .interruptedTaskIDs) ?? []
         carryoverTaskIDs = try values.decodeIfPresent([String].self, forKey: .carryoverTaskIDs) ?? []
+        classifications = try values.decodeIfPresent([String: TaskClassification].self, forKey: .classifications) ?? [:]
+    }
+}
+
+enum EisenhowerQuadrant: String, Codable, CaseIterable, Identifiable {
+    case urgentImportant
+    case urgentUnimportant
+    case notUrgentImportant
+    case notUrgentUnimportant
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .urgentImportant: "Urgent + important"
+        case .urgentUnimportant: "Urgent + not important"
+        case .notUrgentImportant: "Not urgent + important"
+        case .notUrgentUnimportant: "Not urgent + not important"
+        }
+    }
+}
+
+enum TaskWorkKind: String, Codable, CaseIterable, Identifiable {
+    case programming, writing, proposal, grading, meeting, adminPersonal
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .programming: "Programming"
+        case .writing: "Writing"
+        case .proposal: "Proposal"
+        case .grading: "Grading"
+        case .meeting: "Meeting / fixed commitment"
+        case .adminPersonal: "Admin / personal"
+        }
+    }
+}
+
+enum TaskPlanningState: String, Codable, CaseIterable, Identifiable {
+    case parentProject, actionableTask, fixedCommitment, conditionalTask
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .parentProject: "Parent project"
+        case .actionableTask: "Actionable task"
+        case .fixedCommitment: "Fixed commitment"
+        case .conditionalTask: "Conditional task"
+        }
+    }
+}
+
+struct TaskClassification: Codable, Equatable {
+    var quadrant: EisenhowerQuadrant
+    var workKind: TaskWorkKind
+    var planningState: TaskPlanningState
+    var isConditionReady: Bool
+
+    static let `default` = TaskClassification(
+        quadrant: .notUrgentImportant, workKind: .programming,
+        planningState: .actionableTask, isConditionReady: true
+    )
+
+    var isAvailableForFocus: Bool {
+        switch planningState {
+        case .actionableTask: return true
+        case .conditionalTask: return isConditionReady
+        case .parentProject, .fixedCommitment: return false
+        }
     }
 }
 
