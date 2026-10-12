@@ -1294,6 +1294,23 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.remainingTime, 480)
     }
 
+    func testTaskEstimateAndChildDecisionsDoNotChangeFocusCountdown() throws {
+        let start = Date(timeIntervalSince1970: 28_000)
+        let currentDate = start.addingTimeInterval(120)
+        let store = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: store, now: { currentDate })
+
+        XCTAssertEqual(viewModel.remainingTime, 480)
+        XCTAssertTrue(viewModel.setRemainingEstimate("grading", seconds: 30 * 60))
+        XCTAssertTrue(viewModel.addChild(title: "Check rubrics", estimateSeconds: 10 * 60, to: "grading", accounting: .usesParentEstimate))
+        XCTAssertEqual(viewModel.remainingTime, 480)
+        XCTAssertEqual(viewModel.phase, .work)
+
+        let plan = try XCTUnwrap(store.load())
+        XCTAssertEqual(plan.tasks.first { $0.id == "grading" }?.remainingEstimateSeconds, 20 * 60)
+        XCTAssertEqual(plan.tasks.first { $0.title == "Check rubrics" }?.parentTaskID, "grading")
+    }
+
     private func taskPlan(selected: String) -> WeeklyPlan {
         WeeklyPlan(id: "tasks", tasks: [
             PlannedTask(id: "grading", sourceID: nil, title: "Grading", originalEstimateSeconds: 1_200, remainingEstimateSeconds: 1_200, completedAt: nil, order: 0, deadline: nil, prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil, project: nil, context: nil, minimumChunkSeconds: nil, categoryTags: []),

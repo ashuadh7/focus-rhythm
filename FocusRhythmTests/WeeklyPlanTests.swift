@@ -286,6 +286,20 @@ final class WeeklyPlanTests: XCTestCase {
         XCTAssertEqual(plan.taskQueue(at: now).suggestedTask?.id, "second")
     }
 
+    func testRemainingEstimateCanBecomeKnownOrExplicitlyUnknownWithoutLosingTask() throws {
+        var plan = WeeklyPlan(id: "local", tasks: [makeTask(id: "task", title: "Grading", estimate: nil)])
+
+        try plan.setRemainingEstimate("task", to: 90 * 60)
+        XCTAssertEqual(task("task", in: plan).remainingEstimateSeconds, 90 * 60)
+        XCTAssertFalse(plan.hasUnknownRemainingEffort)
+
+        try plan.setRemainingEstimate("task", to: nil)
+        XCTAssertNil(task("task", in: plan).remainingEstimateSeconds)
+        XCTAssertTrue(plan.hasUnknownRemainingEffort)
+        XCTAssertNil(task("task", in: plan).completedAt)
+        XCTAssertNil(task("task", in: plan).abandonedAt)
+    }
+
     func testQueueExcludesCompletedAndPrerequisiteBlockedWork() {
         var completed = makeTask(id: "done", title: "Done", estimate: 600)
         completed.completedAt = now

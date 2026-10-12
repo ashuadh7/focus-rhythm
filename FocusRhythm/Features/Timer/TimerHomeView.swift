@@ -9,6 +9,7 @@ struct TimerHomeView: View {
     @State private var holdTimer: Timer?
     @State private var pickerDuration: TimeInterval = FocusTimerViewModel.defaultBreakDuration
     @State private var endCycleReasoning = ""
+    @State private var isShowingTaskActions = false
     @Environment(\.scenePhase) private var scenePhase
     private let onEndDay: () -> Void
     private let clock: AppClock
@@ -59,6 +60,9 @@ struct TimerHomeView: View {
             .sheet(isPresented: $isShowingTodayFlow) {
                 TodayFlowView(clock: clock)
             }
+            .sheet(isPresented: $isShowingTaskActions) {
+                TaskAdjustmentsView(viewModel: viewModel)
+            }
             .sheet(isPresented: Binding(
                 get: { viewModel.isSelectingBreakDuration },
                 set: { if !$0 { viewModel.cancelBreakSelection() } }
@@ -81,6 +85,12 @@ struct TimerHomeView: View {
                 if phase == .completedDay {
                     isShowingSummary = true
                 }
+                if (phase == .break || phase == .shortBreak || phase.isLongBreak),
+                   viewModel.taskQueue?.selectableTasks.isEmpty == false {
+                    // Breaks are the calm default moment for these small choices.
+                    // Dismissing the sheet keeps the break running normally.
+                    isShowingTaskActions = true
+                }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
@@ -92,6 +102,9 @@ struct TimerHomeView: View {
     private var content: some View {
         VStack(spacing: 32) {
             HStack {
+                Button("Tasks") { isShowingTaskActions = true }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button("Today") { isShowingTodayFlow = true }
                     .font(.subheadline)
@@ -484,4 +497,228 @@ struct TimerHomeView: View {
 
 #Preview {
     TimerHomeView()
+}
+
+/// A compact, timer-safe decision surface.  It is intentionally available on a
+/// break and during focus: every action changes durable task state only, leaving
+/// the running interval and rest untouched.
+private struct TaskAdjustmentsView: View {
+    @Environment(\.dismiss) private var dismiss
+    let viewModel: FocusTimerViewModel
+    @State private var estimateTaskID: String?
+    @State private var childParentID: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let selectedID = viewModel.selectedTaskID, let task = viewModel.task(id: selectedID) {
+                    Section {
+                        taskSummary(task)
+                        Button("Mark done") { _ = viewModel.completeSelectedTask() }
+                        Button("Revise remaining effort") { estimateTaskID = task.id }
+                        Button("Break down work") { childParentID = task.id }
+                        Button("Not now") { _ = viewModel.deferTask(task.id) }
+                    } header: {
+                        Text("Working now")
+                    } footer: {
+                        Text("Not now keeps this task open and returns it to the queue later; it never means done or deleted.")
+                    }
+                } else {
+                    Section("Task decisions") {
+                        Text("Choose what to work on next, or refine a task without changing the timer.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let queue = viewModel.taskQueue {
+                    queueSection(queue)
+                } else {
+                    Section { Text("Add tasks from Today or the setup screen to use task decisions here.").foregroundStyle(.secondary) }
+                }
+            }
+            .navigationTitle("Task decisions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+            }
+            .sheet(item: Binding(
+                get: { estimateTaskID.map(TaskReference.init) },
+                set: { estimateTaskID = $0?.id }
+            )) { reference in
+                if let task = viewModel.task(id: reference.id) {
+                    RemainingEstimateEditor(task: task) { seconds in
+                        if viewModel.setRemainingEstimate(task.id, seconds: seconds) { estimateTaskID = nil }
+                    }
+                }
+            }
+            .sheet(item: Binding(
+                get: { childParentID.map(TaskReference.init) },
+                set: { childParentID = $0?.id }
+            )) { reference in
+                if let parent = viewModel.task(id: reference.id) {
+                    ChildTaskEditor(parent: parent) { title, estimate, accounting in
+                        if viewModel.addChild(title: title, estimateSeconds: estimate, to: parent.id, accounting: accounting) {
+                            childParentID = nil
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func queueSection(_ queue: TaskQueue) -> some View {
+        Section {
+            if queue.readyTasks.isEmpty && queue.deferredTasks.isEmpty {
+                Text("Nothing eligible is queued right now.").foregroundStyle(.secondary)
+            }
+            ForEach(queue.readyTasks) { task in
+                queueRow(task, deferred: false, queue: queue)
+            }
+            if !queue.deferredTasks.isEmpty {
+                Text("Not now").font(.subheadline.weight(.semibold))
+                ForEach(queue.deferredTasks) { task in
+                    queueRow(task, deferred: true, queue: queue)
+                }
+                if let date = queue.nextDeferredReturn {
+                    Text("Postponed work returns at \(date.formatted(date: .omitted, time: .shortened)).")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Choose or reorder")
+        } footer: {
+            Text("Choosing during a break preserves the rest. Choosing or refining during focus preserves the countdown.")
+        }
+    }
+
+    private func queueRow(_ task: PlannedTask, deferred: Bool, queue: TaskQueue) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(task.title).fontWeight(queue.selectedTaskID == task.id ? .semibold : .regular)
+                Text(detail(task)).font(.caption).foregroundStyle(.secondary)
+                if queue.returnedForDeadline.contains(task.id) {
+                    Text("Returned now because its deadline needs attention")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+            Spacer()
+            Menu {
+                Button("Choose") { _ = viewModel.selectTask(task.id) }
+                Button("Revise remaining effort") { estimateTaskID = task.id }
+                Button("Break down work") { childParentID = task.id }
+                if !deferred { Button("Not now") { _ = viewModel.deferTask(task.id) } }
+                Button("Move earlier") { move(task.id, by: -1) }
+                Button("Move later") { move(task.id, by: 1) }
+            } label: { Image(systemName: "ellipsis.circle") }
+                .accessibilityLabel("Options for \(task.title)")
+        }
+    }
+
+    private func taskSummary(_ task: PlannedTask) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(task.title).font(.headline)
+            Text(detail(task)).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func detail(_ task: PlannedTask) -> String {
+        var values = [task.remainingEstimateSeconds.map(displayDuration) ?? "Time unknown"]
+        if let deadline = task.deadline { values.append("Due \(deadline.formatted(date: .abbreviated, time: .omitted))") }
+        return values.joined(separator: " · ")
+    }
+
+    private func move(_ id: String, by offset: Int) {
+        var ids = viewModel.taskOrderIDs
+        guard !ids.isEmpty,
+              let index = ids.firstIndex(of: id), ids.indices.contains(index + offset) else { return }
+        ids.swapAt(index, index + offset)
+        _ = viewModel.reorderTasks(ids)
+    }
+}
+
+private struct TaskReference: Identifiable {
+    let id: String
+}
+
+private struct RemainingEstimateEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    let task: PlannedTask
+    let save: (TimeInterval?) -> Void
+    @State private var minutes = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Minutes", text: $minutes).keyboardType(.decimalPad)
+                    Button("Add 30 minutes") {
+                        let current = task.remainingEstimateSeconds ?? 0
+                        minutes = String(Int((current + 30 * 60) / 60))
+                    }
+                    Button("Make time unknown", role: .destructive) { save(nil) }
+                } header: {
+                    Text("Remaining effort")
+                } footer: {
+                    Text("This changes the task forecast only. It never extends focus or shortens a break.")
+                }
+            }
+            .navigationTitle("Revise effort")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save(Double(minutes).map { $0 * 60 }) }
+                        .disabled(Double(minutes).map { $0 < 0 } ?? true)
+                }
+            }
+            .onAppear { minutes = task.remainingEstimateSeconds.map { String(Int($0 / 60)) } ?? "" }
+        }
+    }
+}
+
+private struct ChildTaskEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    let parent: PlannedTask
+    let save: (String, TimeInterval?, ChildEstimateAccounting) -> Void
+    @State private var title = ""
+    @State private var minutes = ""
+    @State private var accounting: ChildEstimateAccounting = .usesParentEstimate
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Smaller task") {
+                    TextField("What is the next piece?", text: $title)
+                    TextField("Minutes (optional)", text: $minutes).keyboardType(.decimalPad)
+                }
+                if Double(minutes) != nil {
+                    Section("How does this affect \(parent.title)?") {
+                        Picker("Accounting", selection: $accounting) {
+                            Text("Use existing estimate").tag(ChildEstimateAccounting.usesParentEstimate)
+                            Text("Add to estimate").tag(ChildEstimateAccounting.addsToParentEstimate)
+                        }
+                        .pickerStyle(.inline)
+                        Text(accounting == .usesParentEstimate
+                             ? "This amount comes out of the parent's remaining estimate."
+                             : "This amount is newly discovered work added beyond the parent's estimate.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section { Text("Without an estimate, total work remains unknown; no time is invented.").font(.footnote).foregroundStyle(.secondary) }
+                }
+            }
+            .navigationTitle("Break down work")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add child") { save(title, Double(minutes).map { $0 * 60 }, accounting) }
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Double(minutes).map { $0 < 0 } ?? false)
+                }
+            }
+        }
+    }
+}
+
+private func displayDuration(_ seconds: TimeInterval) -> String {
+    let minutes = max(0, Int((seconds / 60).rounded()))
+    return minutes >= 60 ? "\(minutes / 60) hr \(minutes % 60) min" : "\(minutes) min"
 }

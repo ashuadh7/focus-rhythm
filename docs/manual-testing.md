@@ -111,6 +111,28 @@ during focus.
    remaining focus time to it. Run the rhythm with no selected task as well; the
    normal timer and break controls must remain usable.
 
+## Task decisions at a break or during focus (#49)
+
+Start a test rhythm with three queued tasks: **A** (2.5 hours), **B**, and **C**;
+give A a near deadline and include both a local task and an imported task if a fixture
+is available. Open **Tasks** from the timer during a break, then repeat while focus is
+running.
+
+1. Revise A from unknown to 90 minutes, add 30 minutes, then make it unknown again.
+   Confirm each change survives relaunch, no task is completed or lost, and the timer
+   and current break keep their original countdowns.
+2. Break A into a one-hour child. First choose **Use existing estimate** and confirm
+   the parent falls from 2.5 hours to 1.5 hours; then use **Add to estimate** for a
+   different child and confirm it is shown as newly discovered work. Creating either
+   child must not select it or reset the timer.
+3. Move A/B/C earlier and later, postpone A with **Not now**, and choose B. Confirm
+   A remains open, appears under Not now with a return time, and its selection never
+   means completion, abandonment, or deletion. Repeat several deferrals and confirm
+   an at-risk deadline is called out when it returns.
+4. Choose a task during a break and verify the break continues; return to focus and
+   confirm the selection is shown. Make the same estimate, child, and queue choices
+   on imported work where applicable—the controls should not require source metadata.
+
 ## Today’s suggested flow (#45)
 
 From the timer, tap **Today**. This is a review surface, not a second planner: task

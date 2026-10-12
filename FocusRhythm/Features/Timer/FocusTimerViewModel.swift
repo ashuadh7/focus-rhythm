@@ -282,6 +282,62 @@ final class FocusTimerViewModel {
         }
     }
 
+    /// The same durable queue is available while a break is running and when a
+    /// priority becomes clear mid-focus.  None of these choices owns the timer.
+    var taskQueue: TaskQueue? {
+        _ = taskDisplayRevision
+        return planStore?.load()?.taskQueue(at: now())
+    }
+
+    var selectedTaskID: String? {
+        _ = taskDisplayRevision
+        return planStore?.load()?.localState.selectedTaskID
+    }
+
+    var taskOrderIDs: [String] {
+        _ = taskDisplayRevision
+        return planStore?.load()?.taskOrderIDs ?? []
+    }
+
+    func task(id: String) -> PlannedTask? {
+        _ = taskDisplayRevision
+        return planStore?.load()?.tasks.first { $0.id == id }
+    }
+
+    /// Revising an estimate is deliberately independent from the interval: it
+    /// changes the forecast and task card, never its focus or break countdown.
+    @discardableResult
+    func setRemainingEstimate(_ taskID: String, seconds: TimeInterval?) -> Bool {
+        updatePlan { plan in
+            try plan.setRemainingEstimate(taskID, to: seconds)
+        }
+    }
+
+    @discardableResult
+    func deferTask(_ taskID: String, for duration: TimeInterval = 30 * 60) -> Bool {
+        updatePlan { plan in
+            try plan.deferTask(taskID, at: now(), for: duration)
+        }
+    }
+
+    @discardableResult
+    func reorderTasks(_ ids: [String]) -> Bool {
+        updatePlan { plan in try plan.reorderTasks(ids) }
+    }
+
+    /// Child creation uses the catalog's accounting transaction, so a child of
+    /// an imported parent follows exactly the same rules as a local parent.
+    /// It intentionally does not select the child or restart the countdown.
+    @discardableResult
+    func addChild(title: String, estimateSeconds: TimeInterval?, to parentID: String,
+                  accounting: ChildEstimateAccounting) -> Bool {
+        updatePlan { plan in
+            _ = try plan.addLocalTask(title: title, estimateSeconds: estimateSeconds,
+                                      parentID: parentID, accounting: accounting,
+                                      recordedAt: now())
+        }
+    }
+
     /// Default/maximum break length to offer in the mid-work interrupt picker.
     var midWorkBreakPickerDefault: TimeInterval {
         min(breakDuration, Self.midWorkBreakCap)
@@ -550,6 +606,21 @@ final class FocusTimerViewModel {
             return true
         } catch {
             assertionFailure("Unable to complete task: \(error)")
+            return false
+        }
+    }
+
+    @discardableResult
+    private func updatePlan(_ body: (inout WeeklyPlan) throws -> Void) -> Bool {
+        guard let planStore else { return false }
+        do {
+            guard var plan = planStore.load() else { return false }
+            try body(&plan)
+            try planStore.save(plan)
+            taskDisplayRevision += 1
+            return true
+        } catch {
+            assertionFailure("Unable to update task plan: \(error)")
             return false
         }
     }
