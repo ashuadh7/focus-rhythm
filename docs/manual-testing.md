@@ -54,6 +54,24 @@ after it ends. Relaunch during the meeting and confirm its time is never counted
 focus. Repeat with no planning data and confirm the normal rhythm-only start is
 unchanged.
 
+## Task work tracking (#63)
+
+Use a saved task catalog with at least two unfinished tasks, one with a known estimate
+and one without one, then use **Start test**.
+
+1. Select the known task at the start of **cs 349 assignment**. Switch to the other
+   task after several seconds, then switch back before the block ends. Confirm the
+   timer still ends on its original schedule and the recorded task work is split at
+   each switch rather than assigned entirely to the final task.
+2. Mark the selected task done during a focus block. Confirm the countdown does not
+   restart; select another task and confirm the remaining focus time is credited to it.
+3. Let known work exceed its remaining estimate. Confirm its remaining estimate stops
+   at zero but the task is not silently marked complete. Confirm unknown-effort work
+   gains actual time without gaining a made-up estimate.
+4. Take a mid-focus break, return, and finish the block. Confirm the break itself is
+   not credited to either task. Quit and reopen before a later block completes, then
+   confirm previously recorded task work is present exactly once.
+
 ## Scaled production day
 
 Use this scenario for realistic full-day proportions, long-break warning thresholds,

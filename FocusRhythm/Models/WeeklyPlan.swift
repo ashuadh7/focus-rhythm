@@ -138,6 +138,21 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         self = copy
     }
 
+    /// Completion is an explicit decision. Reaching a zero remaining estimate never
+    /// calls this automatically: estimates describe expectation, while work segments
+    /// describe what actually happened.
+    mutating func markTaskCompleted(_ taskID: String, at date: Date) throws {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }), tasks[index].completedAt == nil else {
+            throw PlanValidationError(path: "tasks.completedAt", message: "Only unfinished tasks can be marked done.")
+        }
+        var copy = self
+        copy.tasks[index].completedAt = date
+        copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
+        try copy.validate()
+        self = copy
+    }
+
     private var orderedTasks: [PlannedTask] {
         let positions = Dictionary(uniqueKeysWithValues: (localState.taskOrder ?? []).enumerated().map { ($0.element, $0.offset) })
         return tasks.sorted { left, right in
