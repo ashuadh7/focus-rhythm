@@ -65,7 +65,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
     ) -> TaskQueue {
         let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
         let ordered = orderedTasks.filter { task in
-            guard task.completedAt == nil,
+            guard task.completedAt == nil, task.abandonedAt == nil,
                   !task.needsEstimateRevision,
                   task.prerequisiteTaskIDs.allSatisfy(completed.contains)
             else { return false }
@@ -108,7 +108,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         guard duration.isFinite, duration > 0 else {
             throw PlanValidationError(path: "localState.deferrals", message: "Deferral duration must be positive.")
         }
-        guard let task = tasks.first(where: { $0.id == taskID }), task.completedAt == nil else {
+        guard let task = tasks.first(where: { $0.id == taskID }), task.completedAt == nil, task.abandonedAt == nil else {
             throw PlanValidationError(path: "localState.deferrals", message: "Only unfinished tasks can be postponed.")
         }
         let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
@@ -124,7 +124,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
     }
 
     mutating func selectTask(_ taskID: String) throws {
-        guard let task = tasks.first(where: { $0.id == taskID }), task.completedAt == nil, !task.needsEstimateRevision else {
+        guard let task = tasks.first(where: { $0.id == taskID }), task.completedAt == nil, task.abandonedAt == nil, !task.needsEstimateRevision else {
             throw PlanValidationError(path: "localState.selectedTaskID", message: "Only unfinished tasks with usable effort can be selected.")
         }
         let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
@@ -142,11 +142,96 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
     /// calls this automatically: estimates describe expectation, while work segments
     /// describe what actually happened.
     mutating func markTaskCompleted(_ taskID: String, at date: Date) throws {
-        guard let index = tasks.firstIndex(where: { $0.id == taskID }), tasks[index].completedAt == nil else {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }), tasks[index].completedAt == nil, tasks[index].abandonedAt == nil else {
             throw PlanValidationError(path: "tasks.completedAt", message: "Only unfinished tasks can be marked done.")
         }
         var copy = self
         copy.tasks[index].completedAt = date
+        copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
+        try copy.validate()
+        self = copy
+    }
+
+    /// Adds an app-owned task to the same catalog used for imported work.  The
+    /// operation also powers child creation so hierarchy never needs a second task
+    /// type or persistence path.
+    @discardableResult
+    mutating func addLocalTask(
+        title: String,
+        estimateSeconds: TimeInterval?,
+        deadline: Date? = nil,
+        project: String? = nil,
+        context: String? = nil,
+        categoryTags: [String] = [],
+        parentID: String? = nil,
+        accounting: ChildEstimateAccounting? = nil,
+        recordedAt: Date = Date()
+    ) throws -> String {
+        let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedTitle.isEmpty else {
+            throw PlanValidationError(path: "tasks.title", message: "A task needs a title.")
+        }
+        guard estimateSeconds.map({ $0.isFinite && $0 >= 0 }) ?? true else {
+            throw PlanValidationError(path: "tasks.estimate", message: "Estimate must be finite and nonnegative.")
+        }
+        guard (parentID == nil) == (accounting == nil) else {
+            throw PlanValidationError(path: "tasks.parentTaskID", message: "A child needs an estimate-accounting choice.")
+        }
+        let task = PlannedTask(
+            id: UUID().uuidString, sourceID: nil, title: cleanedTitle,
+            originalEstimateSeconds: estimateSeconds, remainingEstimateSeconds: estimateSeconds,
+            completedAt: nil, abandonedAt: nil, order: nil, deadline: deadline,
+            prerequisiteTaskIDs: [], parentTaskID: nil, parentEstimateAccounting: nil,
+            project: project?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            context: context?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            minimumChunkSeconds: nil, categoryTags: categoryTags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        )
+        if let parentID, let accounting {
+            try addChild(task, to: parentID, accounting: accounting, recordedAt: recordedAt)
+        } else {
+            let existingOrder = localState.taskOrder ?? orderedTasks.map(\.id)
+            var copy = self
+            copy.tasks.append(task)
+            copy.localState.taskOrder = existingOrder + [task.id]
+            try copy.validate()
+            self = copy
+        }
+        return task.id
+    }
+
+    mutating func editLocalTask(
+        _ taskID: String, title: String, estimateSeconds: TimeInterval?, deadline: Date?,
+        project: String?, context: String?, categoryTags: [String]
+    ) throws {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID && $0.sourceID == nil }) else {
+            throw PlanValidationError(path: "tasks.id", message: "Only local tasks can be edited here.")
+        }
+        let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedTitle.isEmpty else { throw PlanValidationError(path: "tasks.title", message: "A task needs a title.") }
+        guard estimateSeconds.map({ $0.isFinite && $0 >= 0 }) ?? true else {
+            throw PlanValidationError(path: "tasks.estimate", message: "Estimate must be finite and nonnegative.")
+        }
+        var copy = self
+        copy.tasks[index].title = cleanedTitle
+        copy.tasks[index].originalEstimateSeconds = estimateSeconds
+        copy.tasks[index].remainingEstimateSeconds = estimateSeconds
+        copy.tasks[index].deadline = deadline
+        copy.tasks[index].project = project?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        copy.tasks[index].context = context?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        copy.tasks[index].categoryTags = categoryTags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        try copy.validate()
+        self = copy
+    }
+
+    /// Abandonment is explicit and durable. It preserves actual work and task
+    /// history, unlike postponement, which keeps a task active in the queue.
+    mutating func abandonLocalTask(_ taskID: String, at date: Date) throws {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID && $0.sourceID == nil && $0.completedAt == nil && $0.abandonedAt == nil }) else {
+            throw PlanValidationError(path: "tasks.abandonedAt", message: "Only active local tasks can be abandoned.")
+        }
+        var copy = self
+        copy.tasks[index].abandonedAt = date
         copy.localState.deferrals.removeAll { $0.taskID == taskID }
         if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
         try copy.validate()
@@ -192,6 +277,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
             copy.tasks[parentIndex].remainingEstimateSeconds = parentRemaining - amount
         }
         copy.tasks.append(child)
+        copy.localState.taskOrder = (localState.taskOrder ?? orderedTasks.map(\.id)) + [child.id]
         copy.localState.estimateAdjustments.append(TaskEstimateAdjustment(
             parentTaskID: parentID,
             childTaskID: child.id,
@@ -301,6 +387,7 @@ struct PlannedTask: Codable, Equatable, Identifiable {
     var originalEstimateSeconds: TimeInterval?
     var remainingEstimateSeconds: TimeInterval?
     var completedAt: Date?
+    var abandonedAt: Date? = nil
     var order: Int?
     var deadline: Date?
     var prerequisiteTaskIDs: [String]
@@ -311,7 +398,7 @@ struct PlannedTask: Codable, Equatable, Identifiable {
     var minimumChunkSeconds: TimeInterval?
     var categoryTags: [String]
 
-    var needsEstimateRevision: Bool { completedAt == nil && remainingEstimateSeconds == 0 }
+    var needsEstimateRevision: Bool { completedAt == nil && abandonedAt == nil && remainingEstimateSeconds == 0 }
     var hasUnknownEstimate: Bool { originalEstimateSeconds == nil && remainingEstimateSeconds == nil }
 }
 
@@ -331,7 +418,7 @@ extension WeeklyPlan {
     /// planning day. Tasks remain eligible when capacity is unknown; the result says
     /// so rather than assuming zero capacity or a zero estimate.
     func forecast(capacityByDay: [String: TimeInterval]) -> TaskForecast {
-        let ordered = tasks.filter { $0.completedAt == nil }.sorted {
+        let ordered = tasks.filter { $0.completedAt == nil && $0.abandonedAt == nil }.sorted {
             let left = $0.order ?? Int.max
             let right = $1.order ?? Int.max
             return left == right ? $0.id < $1.id : left < right
@@ -519,4 +606,7 @@ enum WeeklyPlanJSON {
     }
 }
 
-private extension String { var nonEmptyPath: String { isEmpty ? "$" : self } }
+private extension String {
+    var nonEmptyPath: String { isEmpty ? "$" : self }
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}

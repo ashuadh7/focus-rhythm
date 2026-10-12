@@ -98,6 +98,10 @@ extension WeeklyPlan {
             }
             if let chunk = task.minimumChunkSeconds { try effort(chunk, "\(path).minimumChunkSeconds") }
             if let completed = task.completedAt { try date(completed, "\(path).completedAt") }
+            if let abandoned = task.abandonedAt {
+                try date(abandoned, "\(path).abandonedAt")
+                try require(task.completedAt == nil, "\(path).abandonedAt", "A completed task cannot also be abandoned.")
+            }
             if let deadline = task.deadline { try date(deadline, "\(path).deadline") }
             if let order = task.order {
                 try require(order >= 0 && orders.insert(order).inserted, "\(path).order", "Order must be nonnegative and unique when supplied.")
