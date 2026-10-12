@@ -274,6 +274,14 @@ final class FocusTimerViewModel {
         return plan.taskQueue(at: now()).suggestedTask?.title
     }
 
+    var selectedTaskHasActiveDescendants: Bool {
+        guard let plan = planStore?.load(), let id = plan.localState.selectedTaskID else { return false }
+        return plan.descendantIDs(of: id).contains { descendantID in
+            guard let task = plan.tasks.first(where: { $0.id == descendantID }) else { return false }
+            return task.completedAt == nil && task.abandonedAt == nil
+        }
+    }
+
     /// Default/maximum break length to offer in the mid-work interrupt picker.
     var midWorkBreakPickerDefault: TimeInterval {
         min(breakDuration, Self.midWorkBreakCap)
@@ -528,14 +536,15 @@ final class FocusTimerViewModel {
     /// Explicitly marks the active task done while leaving the focus countdown
     /// untouched. The rest of the current interval can then be assigned elsewhere.
     @discardableResult
-    func completeSelectedTask() -> Bool {
+    func completeSelectedTask(includingDescendants: Bool = false) -> Bool {
         guard let planStore, let selectedTaskID = planStore.load()?.localState.selectedTaskID else { return false }
         let completedAt = now()
         if schedule != nil { reconcileSchedule(at: completedAt) }
         closeCurrentTaskSegment(at: completedAt)
         do {
             guard var plan = planStore.load() else { return false }
-            try plan.markTaskCompleted(selectedTaskID, at: completedAt)
+            try plan.markTaskCompleted(selectedTaskID, at: completedAt,
+                                       descendantDisposition: includingDescendants ? .completeDescendants : nil)
             try planStore.save(plan)
             taskDisplayRevision += 1
             return true

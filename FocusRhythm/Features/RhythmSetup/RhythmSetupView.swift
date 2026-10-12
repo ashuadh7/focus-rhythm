@@ -50,15 +50,15 @@ struct RhythmSetupView: View {
                 RhythmEditorView(viewModel: viewModel)
             }
             .sheet(isPresented: $isCreatingTask) {
-                LocalTaskEditor(task: nil) { title, estimate, deadline, project, context, tags in
-                    if viewModel.createLocalTask(title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags) {
+                LocalTaskEditor(task: nil, possibleParents: viewModel.possibleParents()) { title, estimate, deadline, project, context, tags, parentID, accounting in
+                    if viewModel.createLocalTask(title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags, parentID: parentID, accounting: accounting) {
                         isCreatingTask = false
                     }
                 }
             }
             .sheet(item: $editingTask) { task in
-                LocalTaskEditor(task: task) { title, estimate, deadline, project, context, tags in
-                    if viewModel.editLocalTask(task.id, title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags) {
+                LocalTaskEditor(task: task, possibleParents: viewModel.possibleParents(for: task.id)) { title, estimate, deadline, project, context, tags, parentID, accounting in
+                    if viewModel.editLocalTask(task.id, title: title, estimateSeconds: estimate, deadline: deadline, project: project, context: context, categoryTags: tags, parentID: parentID, accounting: accounting) {
                         editingTask = nil
                     }
                 }
@@ -120,6 +120,12 @@ struct RhythmSetupView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                if let parentID = task.parentTaskID,
+                   let parent = viewModel.possibleParents().first(where: { $0.id == parentID }) {
+                    Text("Part of \(parent.title)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if queue.returnedForDeadline.contains(task.id) {
                     Text("Returned because its deadline needs attention")
                         .font(.caption)
@@ -129,6 +135,11 @@ struct RhythmSetupView: View {
             Spacer()
             Menu {
                 Button("Choose") { viewModel.selectQueuedTask(task.id) }
+                if viewModel.hasActiveDescendants(task) {
+                    Button("Mark parent and children done") { viewModel.completeQueuedTask(task.id, includingDescendants: true) }
+                } else {
+                    Button("Mark done") { viewModel.completeQueuedTask(task.id) }
+                }
                 if !isDeferred {
                     Button("Not now") { viewModel.postponeQueuedTask(task.id) }
                 }
@@ -136,7 +147,11 @@ struct RhythmSetupView: View {
                 Button("Move later") { viewModel.moveQueuedTask(task.id, by: 1) }
                 if task.sourceID == nil {
                     Button("Edit task") { editingTask = task }
-                    Button("Abandon task", role: .destructive) { viewModel.abandonLocalTask(task.id) }
+                    if viewModel.hasActiveDescendants(task) {
+                        Button("Abandon parent and children", role: .destructive) { viewModel.abandonLocalTaskAndDescendants(task.id) }
+                    } else {
+                        Button("Abandon task", role: .destructive) { viewModel.abandonLocalTask(task.id) }
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -308,10 +323,13 @@ private struct LocalTaskEditor: View {
     @State private var project: String
     @State private var context: String
     @State private var tags: String
+    @State private var parentID: String?
+    @State private var accounting: ChildEstimateAccounting
     private let isEditing: Bool
-    let save: (String, TimeInterval?, Date?, String?, String?, [String]) -> Void
+    private let possibleParents: [PlannedTask]
+    let save: (String, TimeInterval?, Date?, String?, String?, [String], String?, ChildEstimateAccounting?) -> Void
 
-    init(task: PlannedTask?, save: @escaping (String, TimeInterval?, Date?, String?, String?, [String]) -> Void) {
+    init(task: PlannedTask?, possibleParents: [PlannedTask], save: @escaping (String, TimeInterval?, Date?, String?, String?, [String], String?, ChildEstimateAccounting?) -> Void) {
         _title = State(initialValue: task?.title ?? "")
         _estimateMinutes = State(initialValue: task?.remainingEstimateSeconds.map { String(Int($0 / 60)) } ?? "")
         _hasDeadline = State(initialValue: task?.deadline != nil)
@@ -319,7 +337,10 @@ private struct LocalTaskEditor: View {
         _project = State(initialValue: task?.project ?? "")
         _context = State(initialValue: task?.context ?? "")
         _tags = State(initialValue: task?.categoryTags.joined(separator: ", ") ?? "")
+        _parentID = State(initialValue: task?.parentTaskID)
+        _accounting = State(initialValue: task?.parentEstimateAccounting ?? .usesParentEstimate)
         isEditing = task != nil
+        self.possibleParents = possibleParents
         self.save = save
     }
 
@@ -334,6 +355,24 @@ private struct LocalTaskEditor: View {
                 TextField("Project (optional)", text: $project)
                 TextField("Context (optional)", text: $context)
                 TextField("Tags, separated by commas", text: $tags)
+                Section("Break down work") {
+                    Picker("Parent task", selection: $parentID) {
+                        Text("No parent").tag(Optional<String>.none)
+                        ForEach(possibleParents) { parent in
+                            Text(parentLabel(parent)).tag(Optional(parent.id))
+                        }
+                    }
+                    if let parentID, let parent = possibleParents.first(where: { $0.id == parentID }) {
+                        Picker("How should this affect the estimate?", selection: $accounting) {
+                            Text("Use existing estimate").tag(ChildEstimateAccounting.usesParentEstimate)
+                            Text("Add to estimate").tag(ChildEstimateAccounting.addsToParentEstimate)
+                        }
+                        .pickerStyle(.navigationLink)
+                        Text(accountingExplanation(for: parent))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .navigationTitle(isEditing ? "Edit task" : "New task")
             .toolbar {
@@ -343,11 +382,35 @@ private struct LocalTaskEditor: View {
                         let minutes = Double(estimateMinutes.trimmingCharacters(in: .whitespacesAndNewlines))
                         save(title, minutes.map { $0 * 60 }, hasDeadline ? deadline : nil,
                              project.isEmpty ? nil : project, context.isEmpty ? nil : context,
-                             tags.split(separator: ",").map(String.init))
+                             tags.split(separator: ",").map(String.init), parentID,
+                             parentID == nil ? nil : accounting)
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+        }
+    }
+
+    private func parentLabel(_ parent: PlannedTask) -> String {
+        let breadcrumb = parent.parentTaskID.flatMap { id in possibleParents.first(where: { $0.id == id })?.title }
+        return breadcrumb.map { "\($0) › \(parent.title)" } ?? parent.title
+    }
+
+    private func accountingExplanation(for parent: PlannedTask) -> String {
+        guard let minutes = Double(estimateMinutes.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return parent.remainingEstimateSeconds == nil
+                ? "The parent has no estimate, so the total stays unknown until you estimate it."
+                : "Add an estimate to see exactly how this child changes the known work."
+        }
+        let amount = Int(minutes)
+        if parent.remainingEstimateSeconds == nil {
+            return "The parent has no estimate, so the total remains unknown. This relationship is still recorded."
+        }
+        switch accounting {
+        case .usesParentEstimate:
+            return "This uses \(amount) minutes already included in \(parent.title)'s remaining work."
+        case .addsToParentEstimate:
+            return "This adds \(amount) minutes of newly discovered work on top of \(parent.title)'s remaining work."
         }
     }
 }

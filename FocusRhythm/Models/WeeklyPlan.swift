@@ -141,14 +141,25 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
     /// Completion is an explicit decision. Reaching a zero remaining estimate never
     /// calls this automatically: estimates describe expectation, while work segments
     /// describe what actually happened.
-    mutating func markTaskCompleted(_ taskID: String, at date: Date) throws {
+    mutating func markTaskCompleted(
+        _ taskID: String,
+        at date: Date,
+        descendantDisposition: ActiveDescendantDisposition? = nil
+    ) throws {
         guard let index = tasks.firstIndex(where: { $0.id == taskID }), tasks[index].completedAt == nil, tasks[index].abandonedAt == nil else {
             throw PlanValidationError(path: "tasks.completedAt", message: "Only unfinished tasks can be marked done.")
+        }
+        let activeDescendants = activeDescendantIndices(of: taskID)
+        if !activeDescendants.isEmpty && descendantDisposition == nil {
+            throw PlanValidationError(path: "tasks.completedAt", message: "Review unfinished child tasks before completing this parent.")
         }
         var copy = self
         copy.tasks[index].completedAt = date
         copy.localState.deferrals.removeAll { $0.taskID == taskID }
         if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
+        if let descendantDisposition {
+            copy.apply(descendantDisposition, to: activeDescendants, at: date)
+        }
         try copy.validate()
         self = copy
     }
@@ -190,7 +201,7 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         if let parentID, let accounting {
             try addChild(task, to: parentID, accounting: accounting, recordedAt: recordedAt)
         } else {
-            let existingOrder = localState.taskOrder ?? orderedTasks.map(\.id)
+            let existingOrder = normalizedTaskOrder()
             var copy = self
             copy.tasks.append(task)
             copy.localState.taskOrder = existingOrder + [task.id]
@@ -202,7 +213,9 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
 
     mutating func editLocalTask(
         _ taskID: String, title: String, estimateSeconds: TimeInterval?, deadline: Date?,
-        project: String?, context: String?, categoryTags: [String]
+        project: String?, context: String?, categoryTags: [String],
+        parentID: String? = nil, accounting: ChildEstimateAccounting? = nil,
+        recordedAt: Date = Date()
     ) throws {
         guard let index = tasks.firstIndex(where: { $0.id == taskID && $0.sourceID == nil }) else {
             throw PlanValidationError(path: "tasks.id", message: "Only local tasks can be edited here.")
@@ -212,7 +225,29 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         guard estimateSeconds.map({ $0.isFinite && $0 >= 0 }) ?? true else {
             throw PlanValidationError(path: "tasks.estimate", message: "Estimate must be finite and nonnegative.")
         }
+        guard (parentID == nil) == (accounting == nil) else {
+            throw PlanValidationError(path: "tasks.parentTaskID", message: "A child needs an estimate-accounting choice.")
+        }
+        if let parentID {
+            guard tasks.contains(where: { $0.id == parentID }), parentID != taskID,
+                  !descendantIDs(of: taskID).contains(parentID) else {
+                throw PlanValidationError(path: "tasks.parentTaskID", message: "A task cannot be placed inside itself or one of its children.")
+            }
+        }
+
         var copy = self
+        // Undo the current allocation using the child's *current* remaining work,
+        // then apply the edited relationship and estimate in the same candidate.
+        // This keeps known remaining work constant unless the person explicitly
+        // changes the estimate or selects "Add to estimate".
+        let oldTask = copy.tasks[index]
+        if oldTask.parentEstimateAccounting == .usesParentEstimate,
+           let oldParentID = oldTask.parentTaskID,
+           let oldParentIndex = copy.tasks.firstIndex(where: { $0.id == oldParentID }),
+           let childRemaining = oldTask.remainingEstimateSeconds,
+           let parentRemaining = copy.tasks[oldParentIndex].remainingEstimateSeconds {
+            copy.tasks[oldParentIndex].remainingEstimateSeconds = parentRemaining + childRemaining
+        }
         copy.tasks[index].title = cleanedTitle
         copy.tasks[index].originalEstimateSeconds = estimateSeconds
         copy.tasks[index].remainingEstimateSeconds = estimateSeconds
@@ -220,20 +255,48 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         copy.tasks[index].project = project?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         copy.tasks[index].context = context?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         copy.tasks[index].categoryTags = categoryTags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        copy.tasks[index].parentTaskID = parentID
+        copy.tasks[index].parentEstimateAccounting = accounting
+        if let parentID, let accounting {
+            guard let parentIndex = copy.tasks.firstIndex(where: { $0.id == parentID }) else { fatalError("Validated above") }
+            if accounting == .usesParentEstimate,
+               let amount = estimateSeconds,
+               let parentRemaining = copy.tasks[parentIndex].remainingEstimateSeconds {
+                guard amount <= parentRemaining else {
+                    throw PlanValidationError(path: "tasks.parentEstimateAccounting", message: "Child effort exceeds the parent's known remaining estimate.")
+                }
+                copy.tasks[parentIndex].remainingEstimateSeconds = parentRemaining - amount
+            }
+            copy.localState.estimateAdjustments.append(TaskEstimateAdjustment(
+                parentTaskID: parentID, childTaskID: taskID, accounting: accounting,
+                amountSeconds: estimateSeconds, recordedAt: copy.nextAdjustmentDate(after: recordedAt, for: taskID)
+            ))
+        }
         try copy.validate()
         self = copy
     }
 
     /// Abandonment is explicit and durable. It preserves actual work and task
     /// history, unlike postponement, which keeps a task active in the queue.
-    mutating func abandonLocalTask(_ taskID: String, at date: Date) throws {
+    mutating func abandonLocalTask(
+        _ taskID: String,
+        at date: Date,
+        descendantDisposition: ActiveDescendantDisposition? = nil
+    ) throws {
         guard let index = tasks.firstIndex(where: { $0.id == taskID && $0.sourceID == nil && $0.completedAt == nil && $0.abandonedAt == nil }) else {
             throw PlanValidationError(path: "tasks.abandonedAt", message: "Only active local tasks can be abandoned.")
+        }
+        let activeDescendants = activeDescendantIndices(of: taskID)
+        if !activeDescendants.isEmpty && descendantDisposition == nil {
+            throw PlanValidationError(path: "tasks.abandonedAt", message: "Review unfinished child tasks before abandoning this parent.")
         }
         var copy = self
         copy.tasks[index].abandonedAt = date
         copy.localState.deferrals.removeAll { $0.taskID == taskID }
         if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
+        if let descendantDisposition {
+            copy.apply(descendantDisposition, to: activeDescendants, at: date)
+        }
         try copy.validate()
         self = copy
     }
@@ -276,17 +339,49 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
             }
             copy.tasks[parentIndex].remainingEstimateSeconds = parentRemaining - amount
         }
+        let orderBeforeChild = copy.normalizedTaskOrder()
         copy.tasks.append(child)
-        copy.localState.taskOrder = (localState.taskOrder ?? orderedTasks.map(\.id)) + [child.id]
+        copy.localState.taskOrder = orderBeforeChild + [child.id]
         copy.localState.estimateAdjustments.append(TaskEstimateAdjustment(
             parentTaskID: parentID,
             childTaskID: child.id,
             accounting: accounting,
             amountSeconds: amount,
-            recordedAt: recordedAt
+            recordedAt: copy.nextAdjustmentDate(after: recordedAt, for: child.id)
         ))
         try copy.validate()
         self = copy
+    }
+
+    private func activeDescendantIndices(of taskID: String) -> [Int] {
+        let ids = descendantIDs(of: taskID)
+        return tasks.indices.filter { ids.contains(tasks[$0].id) && tasks[$0].completedAt == nil && tasks[$0].abandonedAt == nil }
+    }
+
+    private mutating func apply(_ disposition: ActiveDescendantDisposition, to indices: [Int], at date: Date) {
+        for index in indices {
+            switch disposition {
+            case .completeDescendants: tasks[index].completedAt = date
+            case .abandonDescendants: tasks[index].abandonedAt = date
+            }
+            localState.deferrals.removeAll { $0.taskID == tasks[index].id }
+            if localState.selectedTaskID == tasks[index].id { localState.selectedTaskID = nil }
+        }
+    }
+
+    private func nextAdjustmentDate(after proposed: Date, for childID: String) -> Date {
+        guard let latest = localState.estimateAdjustments.last(where: { $0.childTaskID == childID })?.recordedAt,
+              proposed <= latest else { return proposed }
+        return latest.addingTimeInterval(0.001)
+    }
+
+    /// Imported snapshots and debug fixtures can predate a locally appended task.
+    /// Keep an existing intentional order, but always append any unrepresented task
+    /// before adding another one so persistence validation stays strict.
+    private func normalizedTaskOrder() -> [String] {
+        let preferred = localState.taskOrder ?? orderedTasks.map(\.id)
+        let known = Set(preferred)
+        return preferred + tasks.map(\.id).filter { !known.contains($0) }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -378,6 +473,13 @@ struct DailyAvailability: Codable, Equatable {
 enum ChildEstimateAccounting: String, Codable, Equatable {
     case usesParentEstimate
     case addsToParentEstimate
+}
+
+/// A parent is never allowed to hide unfinished work below it.  Callers must show
+/// this choice before closing a parent that still has active children.
+enum ActiveDescendantDisposition: Equatable {
+    case completeDescendants
+    case abandonDescendants
 }
 
 struct PlannedTask: Codable, Equatable, Identifiable {

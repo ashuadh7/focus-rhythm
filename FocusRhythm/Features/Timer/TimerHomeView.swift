@@ -230,10 +230,12 @@ struct TimerHomeView: View {
                 }
                 taskContext(task)
                 taskProgress(task.progress)
-                Button("Mark done") { _ = viewModel.completeSelectedTask() }
+                Button(viewModel.selectedTaskHasActiveDescendants ? "Mark parent and children done" : "Mark done") {
+                    _ = viewModel.completeSelectedTask(includingDescendants: viewModel.selectedTaskHasActiveDescendants)
+                }
                     .font(.subheadline.weight(.semibold))
                     .padding(.top, 2)
-                    .accessibilityLabel("Mark \(task.title) done")
+                    .accessibilityLabel(viewModel.selectedTaskHasActiveDescendants ? "Mark \(task.title) and its child tasks done" : "Mark \(task.title) done")
             }
             .frame(maxWidth: 360, alignment: .leading)
             .padding(14)
