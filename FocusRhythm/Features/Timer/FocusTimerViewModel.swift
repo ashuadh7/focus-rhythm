@@ -18,6 +18,12 @@ final class FocusTimerViewModel {
         var deadline: Date?
         var progress: Progress
     }
+
+    struct SuggestedTask: Equatable {
+        var id: String
+        var title: String
+        var reason: String
+    }
     static let defaultWorkDuration: TimeInterval = 50 * 60
     static let defaultBreakDuration: TimeInterval = 10 * 60
 
@@ -268,10 +274,22 @@ final class FocusTimerViewModel {
 
     /// A completion never advances the timer. This is only a calm suggestion for
     /// where the still-running focus interval could go next.
-    var nextTaskSuggestion: String? {
+    var suggestedTask: SuggestedTask? {
         _ = taskDisplayRevision
         guard let plan = planStore?.load() else { return nil }
-        return plan.taskQueue(at: now()).suggestedTask?.title
+        guard let task = plan.taskQueue(at: now()).suggestedTask else { return nil }
+        let reason: String
+        if let deadline = task.deadline {
+            reason = "Due \(deadline.formatted(date: .abbreviated, time: .omitted))"
+        } else {
+            reason = "Ready for this focus block"
+        }
+        return SuggestedTask(id: task.id, title: task.title, reason: reason)
+    }
+
+    /// Kept as a compact compatibility surface for callers that only need a title.
+    var nextTaskSuggestion: String? {
+        suggestedTask?.title
     }
 
     var selectedTaskHasActiveDescendants: Bool {
@@ -327,6 +345,22 @@ final class FocusTimerViewModel {
         updatePlan { plan in
             try plan.deferTask(taskID, at: now(), for: duration)
         }
+    }
+
+    /// Accepting a suggestion only changes the task receiving focus credit; the
+    /// running interval continues untouched.
+    @discardableResult
+    func acceptSuggestedTask() -> Bool {
+        guard let suggestedTask else { return false }
+        return selectTask(suggestedTask.id)
+    }
+
+    /// A skip makes the proposed task temporarily unavailable and immediately
+    /// exposes the next eligible task without affecting the countdown.
+    @discardableResult
+    func skipSuggestedTask() -> Bool {
+        guard let suggestedTask else { return false }
+        return deferTask(suggestedTask.id)
     }
 
     @discardableResult
