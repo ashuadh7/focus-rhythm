@@ -507,6 +507,7 @@ private struct TaskAdjustmentsView: View {
     let viewModel: FocusTimerViewModel
     @State private var estimateTaskID: String?
     @State private var childParentID: String?
+    @State private var isAddingUrgentTask = false
 
     var body: some View {
         NavigationStack {
@@ -528,6 +529,20 @@ private struct TaskAdjustmentsView: View {
                         Text("Choose what to work on next, or refine a task without changing the timer.")
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                Section("Urgent interruption") {
+                    Button("Add urgent task and do it now", systemImage: "exclamationmark.bubble") {
+                        isAddingUrgentTask = true
+                    }
+                    if let interrupted = viewModel.interruptedTaskTitle {
+                        Button("Resume \(interrupted)", systemImage: "arrow.uturn.backward") {
+                            _ = viewModel.resumeInterruptedTask()
+                        }
+                    }
+                    Text("Urgent work uses this focus interval. The timer keeps running, and the interrupted task stays available to resume.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let queue = viewModel.taskQueue {
@@ -560,6 +575,13 @@ private struct TaskAdjustmentsView: View {
                         if viewModel.addChild(title: title, estimateSeconds: estimate, to: parent.id, accounting: accounting) {
                             childParentID = nil
                         }
+                    }
+                }
+            }
+            .sheet(isPresented: $isAddingUrgentTask) {
+                UrgentTaskEditor { title, minutes in
+                    if viewModel.quickAddUrgentTask(title: title, estimateSeconds: minutes.map { $0 * 60 }) {
+                        isAddingUrgentTask = false
                     }
                 }
             }
@@ -604,6 +626,9 @@ private struct TaskAdjustmentsView: View {
             Spacer()
             Menu {
                 Button("Choose") { _ = viewModel.selectTask(task.id) }
+                if queue.selectedTaskID != task.id {
+                    Button("Do now") { _ = viewModel.doUrgentTaskNow(task.id) }
+                }
                 Button("Revise remaining effort") { estimateTaskID = task.id }
                 Button("Break down work") { childParentID = task.id }
                 if !deferred { Button("Not now") { _ = viewModel.deferTask(task.id) } }
@@ -633,6 +658,35 @@ private struct TaskAdjustmentsView: View {
               let index = ids.firstIndex(of: id), ids.indices.contains(index + offset) else { return }
         ids.swapAt(index, index + offset)
         _ = viewModel.reorderTasks(ids)
+    }
+}
+
+private struct UrgentTaskEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var minutes = ""
+    let save: (String, Double?) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("What needs doing now?", text: $title)
+                    TextField("Estimated minutes (optional)", text: $minutes)
+                        .keyboardType(.decimalPad)
+                } footer: {
+                    Text("This switches the current focus interval to the urgent task. You can resume the interrupted task afterwards without restarting the timer.")
+                }
+            }
+            .navigationTitle("Urgent task")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Do now") { save(title, Double(minutes)) }
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
     }
 }
 

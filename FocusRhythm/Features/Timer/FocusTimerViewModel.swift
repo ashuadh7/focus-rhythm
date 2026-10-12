@@ -294,6 +294,15 @@ final class FocusTimerViewModel {
         return planStore?.load()?.localState.selectedTaskID
     }
 
+    /// The most recently displaced task is offered as the clear, deliberate way
+    /// back from an urgent interruption. The full stack remains in the plan so
+    /// nested interruptions can also be unwound in order.
+    var interruptedTaskTitle: String? {
+        _ = taskDisplayRevision
+        guard let plan = planStore?.load(), let id = plan.localState.interruptedTaskIDs.last else { return nil }
+        return plan.tasks.first(where: { $0.id == id })?.title
+    }
+
     var taskOrderIDs: [String] {
         _ = taskDisplayRevision
         return planStore?.load()?.taskOrderIDs ?? []
@@ -587,6 +596,46 @@ final class FocusTimerViewModel {
             assertionFailure("Unable to select task: \(error)")
             return false
         }
+    }
+
+    @discardableResult
+    func doUrgentTaskNow(_ taskID: String) -> Bool {
+        let selectedAt = now()
+        if schedule != nil { reconcileSchedule(at: selectedAt) }
+        closeCurrentTaskSegment(at: selectedAt)
+        return updatePlan { try $0.beginUrgentTask(taskID) }
+    }
+
+    /// Creates an app-owned task and immediately gives it the current focus
+    /// interval. This is intentionally one durable operation from the user's
+    /// perspective: the prior task remains resumable and the timer never resets.
+    @discardableResult
+    func quickAddUrgentTask(title: String, estimateSeconds: TimeInterval?) -> Bool {
+        guard let planStore else { return false }
+        let selectedAt = now()
+        do {
+            if schedule != nil { reconcileSchedule(at: selectedAt) }
+            closeCurrentTaskSegment(at: selectedAt)
+            // `closeCurrentTaskSegment` persists the former task's elapsed work.
+            // Reload after it so the quick-add transaction cannot overwrite that credit.
+            var plan = planStore.load() ?? WeeklyPlan(id: UUID().uuidString, tasks: [])
+            let taskID = try plan.addLocalTask(title: title, estimateSeconds: estimateSeconds, recordedAt: selectedAt)
+            try plan.beginUrgentTask(taskID)
+            try planStore.save(plan)
+            taskDisplayRevision += 1
+            return true
+        } catch {
+            assertionFailure("Unable to add urgent task: \(error)")
+            return false
+        }
+    }
+
+    @discardableResult
+    func resumeInterruptedTask() -> Bool {
+        let selectedAt = now()
+        if schedule != nil { reconcileSchedule(at: selectedAt) }
+        closeCurrentTaskSegment(at: selectedAt)
+        return updatePlan { _ = try $0.resumeInterruptedTask() }
     }
 
     /// Explicitly marks the active task done while leaving the focus countdown

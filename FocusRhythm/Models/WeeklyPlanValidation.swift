@@ -176,6 +176,10 @@ extension WeeklyPlan {
         if let selectedTaskID = localState.selectedTaskID {
             try require(taskIDs.contains(selectedTaskID), "localState.selectedTaskID", "Selected task must be known.")
         }
+        try unique(localState.interruptedTaskIDs, "localState.interruptedTaskIDs")
+        for (index, taskID) in localState.interruptedTaskIDs.enumerated() {
+            try require(taskIDs.contains(taskID), "localState.interruptedTaskIDs[\(index)]", "Interrupted task must be known.")
+        }
         try unique(localState.carryoverTaskIDs, "localState.carryoverTaskIDs")
         for (index, taskID) in localState.carryoverTaskIDs.enumerated() {
             try require(taskIDs.contains(taskID), "localState.carryoverTaskIDs[\(index)]", "Unknown task '\(taskID)'.")

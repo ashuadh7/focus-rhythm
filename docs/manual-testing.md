@@ -373,6 +373,22 @@ the **Task queue** section.
 5. Use the mixed-origin fixture too. Confirm imported and local child tasks appear in
    one queue and can be selected or postponed the same way.
 
+## Urgent work without restarting focus (#64)
+
+Start a rhythm with **Grade assignments** selected and the scaled clock enabled.
+
+1. While focus is running, open **Tasks** → **Add urgent task and do it now**. Add
+   **Reply to student** with a ten-minute estimate. Confirm the countdown continues
+   from its current time and the timer card now says **Working on Reply to student**.
+2. Let a short amount of scaled focus time pass, then reopen **Tasks** and choose
+   **Resume Grade assignments**. Confirm the original countdown continues rather than
+   starting a new Pomodoro, and that the reply remains open in the queue.
+3. Quit and relaunch while the reply is active. Confirm **Resume Grade assignments**
+   is still offered; resume it and finish the focus interval. Confirm the normal break
+   begins when the interval ends.
+4. In the task details after the interval, confirm both tasks show focused time. The
+   time spent on the email must be credited to the email, and the rest to grading.
+
 ## Create local tasks (#67)
 
 On **Choose today’s rhythm**, open **Task queue** and choose **Add task**.
