@@ -8,6 +8,8 @@ struct TimerHomeView: View {
     @State private var holdTimer: Timer?
     @State private var pickerDuration: TimeInterval = FocusTimerViewModel.defaultBreakDuration
     @State private var endCycleReasoning = ""
+    @State private var isShowingUrgentTask = false
+    @State private var suggestionDragOffset: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
     private let onEndDay: () -> Void
     private let clock: AppClock
@@ -66,6 +68,13 @@ struct TimerHomeView: View {
                 set: { if !$0 { viewModel.cancelEndCycle() } }
             )) {
                 endCycleSheet
+            }
+            .sheet(isPresented: $isShowingUrgentTask) {
+                UrgentTaskEditor { title, minutes in
+                    if viewModel.quickAddUrgentTask(title: title, estimateSeconds: minutes.map { $0 * 60 }) {
+                        isShowingUrgentTask = false
+                    }
+                }
             }
             .task {
                 viewModel.requestNotificationPermission()
@@ -228,21 +237,57 @@ struct TimerHomeView: View {
                     .font(.subheadline.weight(.semibold))
                     .padding(.top, 2)
                     .accessibilityLabel(viewModel.selectedTaskHasActiveDescendants ? "Mark \(task.title) and its child tasks done" : "Mark \(task.title) done")
+                Button("Urgent") { isShowingUrgentTask = true }
+                    .font(.caption.weight(.semibold))
+                    .padding(.top, 2)
             }
             .frame(maxWidth: 360, alignment: .leading)
             .padding(14)
             .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
             .accessibilityElement(children: .contain)
-        } else if let suggestion = viewModel.nextTaskSuggestion {
-            VStack(spacing: 5) {
-                Text("No task selected")
-                    .font(.subheadline.weight(.semibold))
-                Text("Next suggestion: \(suggestion)")
+        } else if let suggestion = viewModel.suggestedTask {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Next up")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(suggestion.title)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(2)
+                Text(suggestion.reason)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                HStack {
+                    Button("Skip") { _ = viewModel.skipSuggestedTask() }
+                    Spacer()
+                    Button("Focus") { _ = viewModel.acceptSuggestedTask() }
+                        .buttonStyle(.borderedProminent)
+                }
+                Text("Swipe left to skip · right to focus")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            .multilineTextAlignment(.center)
-            .accessibilityElement(children: .combine)
+            .frame(maxWidth: 360, alignment: .leading)
+            .padding(14)
+            .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+            .offset(x: suggestionDragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { suggestionDragOffset = $0.translation.width }
+                    .onEnded { value in
+                        if value.translation.width >= 60 {
+                            _ = viewModel.acceptSuggestedTask()
+                        } else if value.translation.width <= -60 {
+                            _ = viewModel.skipSuggestedTask()
+                        }
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            suggestionDragOffset = 0
+                        }
+                    }
+            )
+            .accessibilityElement(children: .contain)
+        } else {
+            Button("Urgent task") { isShowingUrgentTask = true }
+                .font(.subheadline.weight(.semibold))
         }
     }
 

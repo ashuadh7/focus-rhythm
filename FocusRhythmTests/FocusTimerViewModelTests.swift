@@ -1322,6 +1322,33 @@ final class FocusTimerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.remainingTime, 480)
     }
 
+    func testAcceptingSuggestedTaskKeepsFocusCountdownRunning() throws {
+        let start = Date(timeIntervalSince1970: 27_100)
+        var currentDate = start.addingTimeInterval(120)
+        let store = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: store, now: { currentDate })
+
+        XCTAssertTrue(viewModel.completeSelectedTask())
+        XCTAssertEqual(viewModel.suggestedTask?.title, "Email")
+        XCTAssertTrue(viewModel.acceptSuggestedTask())
+        XCTAssertEqual(viewModel.currentTask?.title, "Email")
+        XCTAssertEqual(viewModel.remainingTime, 480)
+    }
+
+    func testSkippingSuggestionDefersItWithoutChangingFocusCountdown() throws {
+        let start = Date(timeIntervalSince1970: 27_200)
+        let currentDate = start.addingTimeInterval(120)
+        let store = InMemoryWeeklyPlanStore(plan: taskPlan(selected: "grading"))
+        let viewModel = FocusTimerViewModel(run: makeRun(start: start), sessionStore: InMemoryFocusSessionStore(), notificationScheduler: InMemoryNotificationScheduler(), activeRunStore: InMemoryActiveRunStore(), planStore: store, now: { currentDate })
+
+        XCTAssertTrue(viewModel.completeSelectedTask())
+        XCTAssertTrue(viewModel.skipSuggestedTask())
+        XCTAssertNil(viewModel.suggestedTask)
+        XCTAssertEqual(viewModel.remainingTime, 480)
+        XCTAssertEqual(store.load()?.localState.deferrals.last?.taskID, "email")
+        XCTAssertEqual(store.load()?.localState.deferrals.last?.until, currentDate.addingTimeInterval(30 * 60))
+    }
+
     func testTaskEstimateAndChildDecisionsDoNotChangeFocusCountdown() throws {
         let start = Date(timeIntervalSince1970: 28_000)
         let currentDate = start.addingTimeInterval(120)
