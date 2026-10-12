@@ -56,6 +56,97 @@ struct WeeklyPlan: Codable, Equatable, Identifiable {
         return result
     }
 
+    /// The durable queue is deliberately independent from the timer. Selecting or
+    /// deferring a task changes what is offered next, never the running interval.
+    func taskQueue(
+        at date: Date,
+        availableFocusSeconds: TimeInterval? = nil,
+        deadlineAtRiskTaskIDs: Set<String> = []
+    ) -> TaskQueue {
+        let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
+        let ordered = orderedTasks.filter { task in
+            guard task.completedAt == nil,
+                  !task.needsEstimateRevision,
+                  task.prerequisiteTaskIDs.allSatisfy(completed.contains)
+            else { return false }
+            guard let availableFocusSeconds, let minimum = task.minimumChunkSeconds else { return true }
+            return availableFocusSeconds >= minimum
+        }
+
+        let deferrals = Dictionary(uniqueKeysWithValues: localState.deferrals.map { ($0.taskID, $0) })
+        let returnedForDeadline = ordered.filter {
+            guard let deferral = deferrals[$0.id] else { return false }
+            return deferral.until > date && deadlineAtRiskTaskIDs.contains($0.id)
+        }.map(\.id)
+        let deferred = ordered.filter {
+            guard let deferral = deferrals[$0.id] else { return false }
+            return deferral.until > date && !deadlineAtRiskTaskIDs.contains($0.id)
+        }
+        let ready = ordered.filter { task in
+            !deferred.contains(where: { $0.id == task.id })
+        }
+        return TaskQueue(
+            readyTasks: ready,
+            deferredTasks: deferred,
+            selectedTaskID: localState.selectedTaskID,
+            nextDeferredReturn: deferred.map { deferrals[$0.id]!.until }.min(),
+            returnedForDeadline: returnedForDeadline
+        )
+    }
+
+    mutating func reorderTasks(_ orderedIDs: [String]) throws {
+        guard Set(orderedIDs) == Set(tasks.map(\.id)), orderedIDs.count == tasks.count else {
+            throw PlanValidationError(path: "localState.taskOrder", message: "Order must contain every task exactly once.")
+        }
+        var copy = self
+        copy.localState.taskOrder = orderedIDs
+        try copy.validate()
+        self = copy
+    }
+
+    mutating func deferTask(_ taskID: String, at date: Date, for duration: TimeInterval = 30 * 60) throws {
+        guard duration.isFinite, duration > 0 else {
+            throw PlanValidationError(path: "localState.deferrals", message: "Deferral duration must be positive.")
+        }
+        guard let task = tasks.first(where: { $0.id == taskID }), task.completedAt == nil else {
+            throw PlanValidationError(path: "localState.deferrals", message: "Only unfinished tasks can be postponed.")
+        }
+        let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
+        guard task.prerequisiteTaskIDs.allSatisfy(completed.contains) else {
+            throw PlanValidationError(path: "localState.deferrals", message: "Finish prerequisites before postponing this task.")
+        }
+        var copy = self
+        copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        copy.localState.deferrals.append(TaskDeferral(taskID: taskID, deferredAt: date, until: date.addingTimeInterval(duration)))
+        if copy.localState.selectedTaskID == taskID { copy.localState.selectedTaskID = nil }
+        try copy.validate()
+        self = copy
+    }
+
+    mutating func selectTask(_ taskID: String) throws {
+        guard let task = tasks.first(where: { $0.id == taskID }), task.completedAt == nil, !task.needsEstimateRevision else {
+            throw PlanValidationError(path: "localState.selectedTaskID", message: "Only unfinished tasks with usable effort can be selected.")
+        }
+        let completed = Set(tasks.compactMap { $0.completedAt == nil ? nil : $0.id })
+        guard task.prerequisiteTaskIDs.allSatisfy(completed.contains) else {
+            throw PlanValidationError(path: "localState.selectedTaskID", message: "Finish prerequisites before selecting this task.")
+        }
+        var copy = self
+        copy.localState.selectedTaskID = taskID
+        copy.localState.deferrals.removeAll { $0.taskID == taskID }
+        try copy.validate()
+        self = copy
+    }
+
+    private var orderedTasks: [PlannedTask] {
+        let positions = Dictionary(uniqueKeysWithValues: (localState.taskOrder ?? []).enumerated().map { ($0.element, $0.offset) })
+        return tasks.sorted { left, right in
+            let leftPosition = positions[left.id] ?? (left.order ?? Int.max)
+            let rightPosition = positions[right.id] ?? (right.order ?? Int.max)
+            return leftPosition == rightPosition ? left.id < right.id : leftPosition < rightPosition
+        }
+    }
+
     /// Creates a child and applies its parent estimate choice together.
     mutating func addChild(
         _ child: PlannedTask,
@@ -209,6 +300,17 @@ struct PlannedTask: Codable, Equatable, Identifiable {
     var hasUnknownEstimate: Bool { originalEstimateSeconds == nil && remainingEstimateSeconds == nil }
 }
 
+struct TaskQueue: Equatable {
+    var readyTasks: [PlannedTask]
+    var deferredTasks: [PlannedTask]
+    var selectedTaskID: String?
+    var nextDeferredReturn: Date?
+    var returnedForDeadline: [String]
+
+    var suggestedTask: PlannedTask? { readyTasks.first }
+    var selectableTasks: [PlannedTask] { readyTasks + deferredTasks }
+}
+
 extension WeeklyPlan {
     /// Forecasts unfinished task effort against supplied real focus capacity keyed by
     /// planning day. Tasks remain eligible when capacity is unknown; the result says
@@ -292,6 +394,7 @@ struct FixedCommitment: Codable, Equatable, Identifiable {
 struct PlanLocalState: Codable, Equatable {
     var taskOrder: [String]? = nil
     var deferrals: [TaskDeferral] = []
+    var selectedTaskID: String? = nil
     var estimateAdjustments: [TaskEstimateAdjustment] = []
     var workSegments: [TaskWorkSegment] = []
 }

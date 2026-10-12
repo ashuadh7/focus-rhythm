@@ -169,6 +169,9 @@ extension WeeklyPlan {
             try require(taskIDs.contains(deferral.taskID), "\(path).taskID", "Unknown task '\(deferral.taskID)'.")
             try range(PlanTimeRange(start: deferral.deferredAt, end: deferral.until), path)
         }
+        if let selectedTaskID = localState.selectedTaskID {
+            try require(taskIDs.contains(selectedTaskID), "localState.selectedTaskID", "Selected task must be known.")
+        }
         try unique(localState.estimateAdjustments.map { $0.id.uuidString }, "localState.estimateAdjustments.id")
         var latestAdjustmentByChild = [String: TaskEstimateAdjustment]()
         for (index, adjustment) in localState.estimateAdjustments.enumerated() {
