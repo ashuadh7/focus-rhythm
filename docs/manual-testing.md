@@ -91,6 +91,39 @@ a grading task as conditional and not ready: it must stay visible in Tasks but m
 not be selected automatically by Focus. Switch to **Focus** during a running block
 and confirm it offers only execution controls, not task editing or queue setup.
 
+## v0.4 whole-version workflow — September 14–22 (#79)
+
+This is the single whole-version review for v0.4. It supersedes the older in-focus
+configuration checks below: while a focus interval is running, task planning belongs
+only in **Tasks**. Use the checked-in
+[September fixture](examples/september-14-22-plan.json) through the normal Files
+import flow. Use date travel to begin on September 14, and use **Start test** for
+observable focus/break transitions; the fixture supplies the real-week deadlines and
+meetings rather than an exact timer schedule.
+
+1. In **Tasks**, verify the Throughline chain is present: Control condition →
+   formative-study review → sketches → LLM vision → implementation issues → build.
+   Confirm Conditional grading is visible but waiting, and classify one task without
+   changing its title, hierarchy, estimate, deadline, actual work, carryover, or
+   imported identity.
+2. Start a focus block. The first eligible card should prioritize Control condition
+   and explain its deadline or the work it unblocks. Confirm the Sept 15 Jian, Sept
+   17 Fan, and Sept 22 Jian checkpoints remain fixed commitments, not movable task
+   blocks. Related-work drafting must not displace a deadline-critical chain step.
+3. Swipe the card left, then verify the next eligible task appears. Keep accepting or
+   skipping until the skipped task returns predictably; advance the travelled date
+   only if needed to confirm deadline risk can bring it back early. Swipe right to
+   accept a suggestion, mark it done, and confirm the countdown continues while the
+   next card appears with a concise reason.
+4. Use **Urgent** to add a small interruption, then relaunch and resume the displaced
+   task. The focus countdown and break time must not reset, and each task's actual
+   work must remain attached to the right task.
+5. Reimport the same fixture after doing work and adding a local child. Confirm local
+   actual work, hierarchy, classification, queue choices, and carryover survive the
+   refresh. During active Focus, confirm there is no route to estimates, hierarchy,
+   dependency editing, ordering, or broad task configuration—only accept, skip,
+   complete, and the deliberate urgent flow.
+
 ## Child-task breakdown (#68)
 
 On **Choose today’s rhythm**, add a parent task with **150 minutes** remaining. Add a
